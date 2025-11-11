@@ -1,7 +1,7 @@
 {
-  "name": "compressorjs",
-  "version": "1.2.1",
-  "description": "JavaScript image compressor.",
+  "name": "@lookou823/compressorjs",
+  "version": "1.2.1-0",
+  "description": "基于 compressorjs 的增强版本，支持 Web Worker 优化。JavaScript image compressor with Web Worker support.",
   "main": "dist/compressor.common.js",
   "module": "dist/compressor.esm.js",
   "browser": "dist/compressor.js",
@@ -26,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fengyuanchen/compressorjs.git"
+    "url": "git+https://github.com/Lookou823/compressorjs.git"
   },
   "keywords": [
     "image",
@@ -40,14 +40,14 @@
     "web"
   ],
   "author": {
-    "name": "Chen Fengyuan",
-    "url": "https://chenfengyuan.com/"
+    "name": "Lookou823",
+    "url": "https://github.com/Lookou823"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/fengyuanchen/compressorjs/issues"
+    "url": "https://github.com/Lookou823/compressorjs/issues"
   },
-  "homepage": "https://fengyuanchen.github.io/compressorjs",
+  "homepage": "https://github.com/Lookou823/compressorjs#readme",
   "dependencies": {
     "blueimp-canvas-to-blob": "^3.29.0",
     "is-blob": "^2.1.0"
