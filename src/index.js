@@ -1,9 +1,7 @@
-import toBlob from 'blueimp-canvas-to-blob';
-import isBlob from 'is-blob';
-import DEFAULTS from './defaults';
-import {
-  WINDOW,
-} from './constants';
+import toBlob from "blueimp-canvas-to-blob";
+import isBlob from "is-blob";
+import DEFAULTS from "./defaults";
+import { WINDOW } from "./constants";
 import {
   arrayBufferToDataURL,
   getAdjustedSizes,
@@ -15,12 +13,111 @@ import {
   resetAndGetOrientation,
   getExif,
   insertExif,
-} from './utilities';
+} from "./utilities";
 
-const { ArrayBuffer, FileReader } = WINDOW;
+const { ArrayBuffer, FileReader, Worker } = WINDOW;
 const URL = WINDOW.URL || WINDOW.webkitURL;
 const REGEXP_EXTENSION = /\.\w+$/;
 const AnotherCompressor = WINDOW.Compressor;
+
+/**
+ * Check if OffscreenCanvas is supported
+ */
+function isOffscreenCanvasSupported() {
+  return (
+    typeof OffscreenCanvas !== "undefined" && typeof Worker !== "undefined"
+  );
+}
+
+/**
+ * Worker manager for image compression
+ */
+class WorkerManager {
+  constructor() {
+    this.worker = null;
+    this.workerURL = null;
+    this.taskId = 0;
+    this.pendingTasks = new Map();
+  }
+
+  /**
+   * Initialize worker with blob URL
+   */
+  initWorker(workerCode) {
+    if (this.worker) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const blob = new Blob([workerCode], { type: "application/javascript" });
+        this.workerURL = URL.createObjectURL(blob);
+        this.worker = new Worker(this.workerURL);
+
+        this.worker.onmessage = (e) => {
+          const { taskId, success, arrayBuffer, mimeType, error } = e.data;
+          const task = this.pendingTasks.get(taskId);
+
+          if (task) {
+            this.pendingTasks.delete(taskId);
+            if (success) {
+              const blob = new Blob([arrayBuffer], { type: mimeType });
+              task.resolve(blob);
+            } else {
+              task.reject(new Error(error || "Worker compression failed"));
+            }
+          }
+        };
+
+        this.worker.onerror = (error) => {
+          reject(error);
+        };
+
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Compress image using worker
+   */
+  compress(data) {
+    return new Promise((resolve, reject) => {
+      if (!this.worker) {
+        reject(new Error("Worker not initialized"));
+        return;
+      }
+
+      const taskId = ++this.taskId;
+      this.pendingTasks.set(taskId, { resolve, reject });
+
+      this.worker.postMessage({
+        ...data,
+        taskId,
+      });
+    });
+  }
+
+  /**
+   * Terminate worker
+   */
+  terminate() {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    if (this.workerURL) {
+      URL.revokeObjectURL(this.workerURL);
+      this.workerURL = null;
+    }
+    this.pendingTasks.clear();
+  }
+}
+
+// Shared worker manager instance
+let workerManager = null;
 
 /**
  * Creates a new image compressor.
@@ -42,6 +139,8 @@ export default class Compressor {
     };
     this.aborted = false;
     this.result = null;
+    this.useWorker = false;
+    this.workerInitialized = false;
     this.init();
   }
 
@@ -49,19 +148,23 @@ export default class Compressor {
     const { file, options } = this;
 
     if (!isBlob(file)) {
-      this.fail(new Error('The first argument must be a File or Blob object.'));
+      this.fail(new Error("The first argument must be a File or Blob object."));
       return;
     }
 
     const mimeType = file.type;
 
     if (!isImageType(mimeType)) {
-      this.fail(new Error('The first argument must be an image File or Blob object.'));
+      this.fail(
+        new Error("The first argument must be an image File or Blob object.")
+      );
       return;
     }
 
     if (!URL || !FileReader) {
-      this.fail(new Error('The current browser does not support image compression.'));
+      this.fail(
+        new Error("The current browser does not support image compression.")
+      );
       return;
     }
 
@@ -70,7 +173,7 @@ export default class Compressor {
       options.retainExif = false;
     }
 
-    const isJPEGImage = mimeType === 'image/jpeg';
+    const isJPEGImage = mimeType === "image/jpeg";
     const checkOrientation = isJPEGImage && options.checkOrientation;
     const retainExif = isJPEGImage && options.retainExif;
 
@@ -103,10 +206,9 @@ export default class Compressor {
 
         if (checkOrientation || retainExif) {
           if (
-            !URL
-
+            !URL ||
             // Generate a new URL with the default orientation value 1.
-            || orientation > 1
+            orientation > 1
           ) {
             data.url = arrayBufferToDataURL(result, mimeType);
           } else {
@@ -119,10 +221,10 @@ export default class Compressor {
         this.load(data);
       };
       reader.onabort = () => {
-        this.fail(new Error('Aborted to read the image with FileReader.'));
+        this.fail(new Error("Aborted to read the image with FileReader."));
       };
       reader.onerror = () => {
-        this.fail(new Error('Failed to read the image with FileReader.'));
+        this.fail(new Error("Failed to read the image with FileReader."));
       };
       reader.onloadend = () => {
         this.reader = null;
@@ -137,6 +239,33 @@ export default class Compressor {
   }
 
   load(data) {
+    const { file, image, options } = this;
+
+    // Check if we should use Worker
+    const shouldUseWorker =
+      options.useWorker !== false &&
+      (options.useWorker === true ||
+        (options.useWorker === undefined && isOffscreenCanvasSupported()));
+
+    if (shouldUseWorker && !this.workerInitialized) {
+      this.initializeWorker()
+        .then(() => {
+          this.useWorker = true;
+          this.workerInitialized = true;
+          this.proceedWithLoad(data);
+        })
+        .catch(() => {
+          // Fallback to main thread if worker initialization fails
+          this.useWorker = false;
+          this.workerInitialized = true;
+          this.proceedWithLoad(data);
+        });
+    } else {
+      this.proceedWithLoad(data);
+    }
+  }
+
+  proceedWithLoad(data) {
     const { file, image } = this;
 
     image.onload = () => {
@@ -147,24 +276,61 @@ export default class Compressor {
       });
     };
     image.onabort = () => {
-      this.fail(new Error('Aborted to load the image.'));
+      this.fail(new Error("Aborted to load the image."));
     };
     image.onerror = () => {
-      this.fail(new Error('Failed to load the image.'));
+      this.fail(new Error("Failed to load the image."));
     };
 
     // Match all browsers that use WebKit as the layout engine in iOS devices,
     // such as Safari for iOS, Chrome for iOS, and in-app browsers.
-    if (WINDOW.navigator && /(?:iPad|iPhone|iPod).*?AppleWebKit/i.test(WINDOW.navigator.userAgent)) {
+    if (
+      WINDOW.navigator &&
+      /(?:iPad|iPhone|iPod).*?AppleWebKit/i.test(WINDOW.navigator.userAgent)
+    ) {
       // Fix the `The operation is insecure` error (#57)
-      image.crossOrigin = 'anonymous';
+      image.crossOrigin = "anonymous";
     }
 
     image.alt = file.name;
     image.src = data.url;
   }
 
-  draw({
+  async initializeWorker() {
+    if (!workerManager) {
+      workerManager = new WorkerManager();
+    }
+
+    // Try to load worker code
+    // First, try to fetch from a configured path
+    const workerPath = this.options.workerPath;
+    let workerCode = null;
+
+    if (workerPath) {
+      try {
+        const response = await fetch(workerPath);
+        workerCode = await response.text();
+      } catch (error) {
+        // If fetch fails, try to use inline worker code
+        console.warn("Failed to load worker from path, using inline code");
+      }
+    }
+
+    // If no worker code loaded, use inline code
+    if (!workerCode) {
+      workerCode = this.getInlineWorkerCode();
+    }
+
+    await workerManager.initWorker(workerCode);
+  }
+
+  getInlineWorkerCode() {
+    // Return the worker code as a string
+    // This will be replaced with actual worker code during build or runtime
+    return `self.onmessage=async function(e){const{imageDataURL,naturalWidth,naturalHeight,rotate=0,scaleX=1,scaleY=1,options,taskId}=e.data;try{function isPositiveNumber(v){return v>0&&v<Infinity}function normalizeDecimalNumber(v,t=1e11){return/\.\\d*(?:0|9){12}\\d*$/.test(v)?Math.round(v*t)/t:v}function getAdjustedSizes({aspectRatio,height,width},type='none'){const iw=isPositiveNumber(width),ih=isPositiveNumber(height);if(iw&&ih){const aw=height*aspectRatio;if((type==='contain'||type==='none')&&aw>width||type==='cover'&&aw<width)height=width/aspectRatio;else width=height*aspectRatio}else if(iw)height=width/aspectRatio;else if(ih)width=height*aspectRatio;return{width,height}}function isImageType(v){return/^image\\/.+$/.test(v)}const is90=Math.abs(rotate)%180===90,resizable=(options.resize==='contain'||options.resize==='cover')&&isPositiveNumber(options.width)&&isPositiveNumber(options.height);let mw=Math.max(options.maxWidth,0)||Infinity,mh=Math.max(options.maxHeight,0)||Infinity,minw=Math.max(options.minWidth,0)||0,minh=Math.max(options.minHeight,0)||0,ar=naturalWidth/naturalHeight,w=options.width,h=options.height;if(is90){[mw,mh]=[mh,mw];[minw,minh]=[minh,minw];[w,h]=[h,w]}if(resizable)ar=w/h;({width:mw,height:mh}=getAdjustedSizes({aspectRatio:ar,width:mw,height:mh},'contain'));({width:minw,height:minh}=getAdjustedSizes({aspectRatio:ar,width:minw,height:minh},'cover'));if(resizable)({width:w,height:h}=getAdjustedSizes({aspectRatio:ar,width:w,height:h},options.resize));else({width:w=naturalWidth,height:h=naturalHeight}=getAdjustedSizes({aspectRatio:ar,width:w,height:h}));w=Math.floor(normalizeDecimalNumber(Math.min(Math.max(w,minw),mw)));h=Math.floor(normalizeDecimalNumber(Math.min(Math.max(h,minh),mh)));let mt=options.mimeType;if(!isImageType(mt))mt=options.originalMimeType||'image/jpeg';if(options.fileSize>options.convertSize&&options.convertTypes.indexOf(mt)>=0)mt='image/jpeg';const isJpeg=mt==='image/jpeg';if(is90)[w,h]=[h,w];const canvas=new OffscreenCanvas(w,h),ctx=canvas.getContext('2d');ctx.fillStyle=isJpeg?'#fff':'transparent';ctx.fillRect(0,0,w,h);const img=new Image();await new Promise((r,j)=>{img.onload=r;img.onerror=j;img.src=imageDataURL});const dx=-w/2,dy=-h/2,dw=w,dh=h,params=[];if(resizable){let sx=0,sy=0,sw=naturalWidth,sh=naturalHeight;({width:sw,height:sh}=getAdjustedSizes({aspectRatio:ar,width:naturalWidth,height:naturalHeight},{contain:'cover',cover:'contain'}[options.resize]));sx=(naturalWidth-sw)/2;sy=(naturalHeight-sh)/2;params.push(sx,sy,sw,sh)}params.push(dx,dy,dw,dh);ctx.save();ctx.translate(w/2,h/2);ctx.rotate(rotate*Math.PI/180);ctx.scale(scaleX,scaleY);ctx.drawImage(img,...params);ctx.restore();const blob=await canvas.convertToBlob({type:mt,quality:options.quality}),ab=await blob.arrayBuffer();self.postMessage({taskId,success:true,arrayBuffer:ab,mimeType:mt},[ab])}catch(e){self.postMessage({taskId,success:false,error:e.message||'Unknown error'})}};`;
+  }
+
+  async draw({
     naturalWidth,
     naturalHeight,
     rotate = 0,
@@ -172,10 +338,116 @@ export default class Compressor {
     scaleY = 1,
   }) {
     const { file, image, options } = this;
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
+
+    // Use Worker if enabled and available
+    if (this.useWorker && workerManager && workerManager.worker) {
+      return this.drawWithWorker({
+        naturalWidth,
+        naturalHeight,
+        rotate,
+        scaleX,
+        scaleY,
+      });
+    }
+
+    // Fallback to main thread
+    return this.drawOnMainThread({
+      naturalWidth,
+      naturalHeight,
+      rotate,
+      scaleX,
+      scaleY,
+    });
+  }
+
+  async drawWithWorker({
+    naturalWidth,
+    naturalHeight,
+    rotate = 0,
+    scaleX = 1,
+    scaleY = 1,
+  }) {
+    const { file, image, options } = this;
+
+    // Convert image to data URL for worker
+    let imageDataURL;
+    if (image.src.startsWith("data:")) {
+      imageDataURL = image.src;
+    } else if (image.src.startsWith("blob:")) {
+      // Convert blob URL to data URL
+      const response = await fetch(image.src);
+      const blob = await response.blob();
+      imageDataURL = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } else {
+      imageDataURL = image.src;
+    }
+
+    try {
+      const blob = await workerManager.compress({
+        imageDataURL,
+        naturalWidth,
+        naturalHeight,
+        rotate,
+        scaleX,
+        scaleY,
+        options: {
+          ...options,
+          originalMimeType: file.type,
+          fileSize: file.size,
+        },
+      });
+
+      // Determine if result is JPEG
+      let resultMimeType = options.mimeType;
+      if (!isImageType(resultMimeType)) {
+        resultMimeType = file.type;
+      }
+      if (
+        file.size > options.convertSize &&
+        options.convertTypes.indexOf(resultMimeType) >= 0
+      ) {
+        resultMimeType = "image/jpeg";
+      }
+      const isJPEGImage = resultMimeType === "image/jpeg";
+
+      this.handleCompressionResult(blob, {
+        naturalWidth,
+        naturalHeight,
+        isJPEGImage,
+      });
+    } catch (error) {
+      // Fallback to main thread on error
+      this.useWorker = false;
+      return this.drawOnMainThread({
+        naturalWidth,
+        naturalHeight,
+        rotate,
+        scaleX,
+        scaleY,
+      });
+    }
+  }
+
+  drawOnMainThread({
+    naturalWidth,
+    naturalHeight,
+    rotate = 0,
+    scaleX = 1,
+    scaleY = 1,
+  }) {
+    const { file, image, options } = this;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
     const is90DegreesRotated = Math.abs(rotate) % 180 === 90;
-    const resizable = (options.resize === 'contain' || options.resize === 'cover') && isPositiveNumber(options.width) && isPositiveNumber(options.height);
+    const resizable =
+      (options.resize === "contain" || options.resize === "cover") &&
+      isPositiveNumber(options.width) &&
+      isPositiveNumber(options.height);
     let maxWidth = Math.max(options.maxWidth, 0) || Infinity;
     let maxHeight = Math.max(options.maxHeight, 0) || Infinity;
     let minWidth = Math.max(options.minWidth, 0) || 0;
@@ -193,23 +465,32 @@ export default class Compressor {
       aspectRatio = width / height;
     }
 
-    ({ width: maxWidth, height: maxHeight } = getAdjustedSizes({
-      aspectRatio,
-      width: maxWidth,
-      height: maxHeight,
-    }, 'contain'));
-    ({ width: minWidth, height: minHeight } = getAdjustedSizes({
-      aspectRatio,
-      width: minWidth,
-      height: minHeight,
-    }, 'cover'));
+    ({ width: maxWidth, height: maxHeight } = getAdjustedSizes(
+      {
+        aspectRatio,
+        width: maxWidth,
+        height: maxHeight,
+      },
+      "contain"
+    ));
+    ({ width: minWidth, height: minHeight } = getAdjustedSizes(
+      {
+        aspectRatio,
+        width: minWidth,
+        height: minHeight,
+      },
+      "cover"
+    ));
 
     if (resizable) {
-      ({ width, height } = getAdjustedSizes({
-        aspectRatio,
-        width,
-        height,
-      }, options.resize));
+      ({ width, height } = getAdjustedSizes(
+        {
+          aspectRatio,
+          width,
+          height,
+        },
+        options.resize
+      ));
     } else {
       ({ width = naturalWidth, height = naturalHeight } = getAdjustedSizes({
         aspectRatio,
@@ -218,8 +499,12 @@ export default class Compressor {
       }));
     }
 
-    width = Math.floor(normalizeDecimalNumber(Math.min(Math.max(width, minWidth), maxWidth)));
-    height = Math.floor(normalizeDecimalNumber(Math.min(Math.max(height, minHeight), maxHeight)));
+    width = Math.floor(
+      normalizeDecimalNumber(Math.min(Math.max(width, minWidth), maxWidth))
+    );
+    height = Math.floor(
+      normalizeDecimalNumber(Math.min(Math.max(height, minHeight), maxHeight))
+    );
 
     const destX = -width / 2;
     const destY = -height / 2;
@@ -233,14 +518,17 @@ export default class Compressor {
       let srcWidth = naturalWidth;
       let srcHeight = naturalHeight;
 
-      ({ width: srcWidth, height: srcHeight } = getAdjustedSizes({
-        aspectRatio,
-        width: naturalWidth,
-        height: naturalHeight,
-      }, {
-        contain: 'cover',
-        cover: 'contain',
-      }[options.resize]));
+      ({ width: srcWidth, height: srcHeight } = getAdjustedSizes(
+        {
+          aspectRatio,
+          width: naturalWidth,
+          height: naturalHeight,
+        },
+        {
+          contain: "cover",
+          cover: "contain",
+        }[options.resize]
+      ));
       srcX = (naturalWidth - srcWidth) / 2;
       srcY = (naturalHeight - srcHeight) / 2;
 
@@ -260,17 +548,20 @@ export default class Compressor {
       options.mimeType = file.type;
     }
 
-    let fillStyle = 'transparent';
+    let fillStyle = "transparent";
 
     // Converts PNG files over the `convertSize` to JPEGs.
-    if (file.size > options.convertSize && options.convertTypes.indexOf(options.mimeType) >= 0) {
-      options.mimeType = 'image/jpeg';
+    if (
+      file.size > options.convertSize &&
+      options.convertTypes.indexOf(options.mimeType) >= 0
+    ) {
+      options.mimeType = "image/jpeg";
     }
 
-    const isJPEGImage = options.mimeType === 'image/jpeg';
+    const isJPEGImage = options.mimeType === "image/jpeg";
 
     if (isJPEGImage) {
-      fillStyle = '#fff';
+      fillStyle = "#fff";
     }
 
     // Override the default fill color (#000, black)
@@ -301,45 +592,11 @@ export default class Compressor {
     }
 
     const callback = (blob) => {
-      if (!this.aborted) {
-        const done = (result) => this.done({
-          naturalWidth,
-          naturalHeight,
-          result,
-        });
-
-        if (blob && isJPEGImage && options.retainExif && this.exif && this.exif.length > 0) {
-          const next = (arrayBuffer) => done(toBlob(arrayBufferToDataURL(
-            insertExif(arrayBuffer, this.exif),
-            options.mimeType,
-          )));
-
-          if (blob.arrayBuffer) {
-            blob.arrayBuffer().then(next).catch(() => {
-              this.fail(new Error('Failed to read the compressed image with Blob.arrayBuffer().'));
-            });
-          } else {
-            const reader = new FileReader();
-
-            this.reader = reader;
-            reader.onload = ({ target }) => {
-              next(target.result);
-            };
-            reader.onabort = () => {
-              this.fail(new Error('Aborted to read the compressed image with FileReader.'));
-            };
-            reader.onerror = () => {
-              this.fail(new Error('Failed to read the compressed image with FileReader.'));
-            };
-            reader.onloadend = () => {
-              this.reader = null;
-            };
-            reader.readAsArrayBuffer(blob);
-          }
-        } else {
-          done(blob);
-        }
-      }
+      this.handleCompressionResult(blob, {
+        naturalWidth,
+        naturalHeight,
+        isJPEGImage,
+      });
     };
 
     if (canvas.toBlob) {
@@ -349,31 +606,96 @@ export default class Compressor {
     }
   }
 
-  done({
-    naturalWidth,
-    naturalHeight,
-    result,
-  }) {
+  handleCompressionResult(blob, { naturalWidth, naturalHeight, isJPEGImage }) {
+    const { options } = this;
+
+    if (this.aborted) {
+      return;
+    }
+
+    const done = (result) =>
+      this.done({
+        naturalWidth,
+        naturalHeight,
+        result,
+      });
+
+    if (
+      blob &&
+      isJPEGImage &&
+      options.retainExif &&
+      this.exif &&
+      this.exif.length > 0
+    ) {
+      const next = (arrayBuffer) =>
+        done(
+          toBlob(
+            arrayBufferToDataURL(
+              insertExif(arrayBuffer, this.exif),
+              options.mimeType
+            )
+          )
+        );
+
+      if (blob.arrayBuffer) {
+        blob
+          .arrayBuffer()
+          .then(next)
+          .catch(() => {
+            this.fail(
+              new Error(
+                "Failed to read the compressed image with Blob.arrayBuffer()."
+              )
+            );
+          });
+      } else {
+        const reader = new FileReader();
+
+        this.reader = reader;
+        reader.onload = ({ target }) => {
+          next(target.result);
+        };
+        reader.onabort = () => {
+          this.fail(
+            new Error("Aborted to read the compressed image with FileReader.")
+          );
+        };
+        reader.onerror = () => {
+          this.fail(
+            new Error("Failed to read the compressed image with FileReader.")
+          );
+        };
+        reader.onloadend = () => {
+          this.reader = null;
+        };
+        reader.readAsArrayBuffer(blob);
+      }
+    } else {
+      done(blob);
+    }
+  }
+
+  done({ naturalWidth, naturalHeight, result }) {
     const { file, image, options } = this;
 
-    if (URL && image.src.indexOf('blob:') === 0) {
+    if (URL && image.src.indexOf("blob:") === 0) {
       URL.revokeObjectURL(image.src);
     }
 
     if (result) {
       // Returns original file if the result is greater than it and without size related options
       if (
-        options.strict
-        && !options.retainExif
-        && result.size > file.size
-        && options.mimeType === file.type
-        && !(
-          options.width > naturalWidth
-          || options.height > naturalHeight
-          || options.minWidth > naturalWidth
-          || options.minHeight > naturalHeight
-          || options.maxWidth < naturalWidth
-          || options.maxHeight < naturalHeight
+        options.strict &&
+        !options.retainExif &&
+        result.size > file.size &&
+        options.mimeType === file.type &&
+        !(
+          options.width > naturalWidth ||
+          options.height > naturalHeight ||
+          options.minWidth > naturalWidth ||
+          options.minHeight > naturalHeight ||
+          options.maxWidth < naturalWidth ||
+          options.maxHeight < naturalHeight
         )
       ) {
         result = file;
@@ -388,7 +710,7 @@ export default class Compressor {
         if (result.name && result.type !== file.type) {
           result.name = result.name.replace(
             REGEXP_EXTENSION,
-            imageTypeToExtension(result.type),
+            imageTypeToExtension(result.type)
           );
         }
       }
@@ -424,7 +746,13 @@ export default class Compressor {
         this.image.onload = null;
         this.image.onabort();
       } else {
-        this.fail(new Error('The compression process has been aborted.'));
+        this.fail(new Error("The compression process has been aborted."));
+      }
+
+      // Cancel pending worker tasks
+      if (this.useWorker && workerManager) {
+        // Note: We can't cancel individual tasks, but we can mark as aborted
+        // The worker will continue but the result will be ignored
       }
     }
   }
