@@ -6,7 +6,14 @@ const { nodeResolve } = require('@rollup/plugin-node-resolve');
 const replace = require('@rollup/plugin-replace');
 const pkg = require('./package.json');
 
-pkg.name = pkg.name.replace('js', '');
+// 处理 scope 包名（如 @liuyongdi/compressorjs -> compressor）
+// 同时移除 'js' 后缀
+let baseName = pkg.name;
+if (baseName.includes('/')) {
+  // 如果是 scope 包，提取包名部分
+  baseName = baseName.split('/')[1];
+}
+pkg.name = baseName.replace('js', '');
 
 const name = changeCase.pascalCase(pkg.name);
 const banner = createBanner({

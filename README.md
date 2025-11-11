@@ -1,12 +1,13 @@
 # Compressor.js (Enhanced Fork)
 
-> ⚠️ **重要说明**：这是 [compressorjs](https://github.com/fengyuanchen/compressorjs) 的增强版本（Fork），由 [Lookou823](https://github.com/Lookou823) 维护。本版本基于原项目进行了优化和改进，**并非官方版本**。
+> ⚠️ **重要说明**：这是 [compressorjs](https://github.com/fengyuanchen/compressorjs) 的增强版本（Fork），由 [Lookou823](https://github.com/Lookou823) 维护。本版本基于原项目进行了优化和改进，**并非官方版本**。npm 包发布账号：`liuyongdi`。
 
 ## 📋 项目来源
 
 - **原项目**：[compressorjs](https://github.com/fengyuanchen/compressorjs) by [Chen Fengyuan](https://chenfengyuan.com/)
 - **原项目许可证**：MIT License
-- **Fork 仓库**：[Lookou823/compressorjs](https://github.com/Lookou823/compressorjs)
+- **Fork 仓库**：[Lookou823/compressorjs](https://github.com/Lookou823/compressorjs)（GitHub 用户名）
+- **npm 包名**：`@liuyongdi/compressorjs`（npm 用户名）
 
 ## ✨ 本版本的主要改进
 
@@ -15,7 +16,7 @@
 
 ---
 
-[![Coverage Status](https://img.shields.io/codecov/c/github/fengyuanchen/compressorjs.svg)](https://codecov.io/gh/fengyuanchen/compressorjs) [![Version](https://img.shields.io/npm/v/@lookou823/compressorjs.svg)](https://www.npmjs.com/package/@lookou823/compressorjs) [![Gzip Size](https://img.shields.io/bundlephobia/minzip/@lookou823/compressorjs.svg)](https://unpkg.com/@lookou823/compressorjs/dist/compressor.common.js)
+[![Coverage Status](https://img.shields.io/codecov/c/github/fengyuanchen/compressorjs.svg)](https://codecov.io/gh/fengyuanchen/compressorjs) [![Version](https://img.shields.io/npm/v/@liuyongdi/compressorjs.svg)](https://www.npmjs.com/package/@liuyongdi/compressorjs) [![Gzip Size](https://img.shields.io/bundlephobia/minzip/@liuyongdi/compressorjs.svg)](https://unpkg.com/@liuyongdi/compressorjs/dist/compressor.common.js)
 
 > JavaScript image compressor. Uses the Browser's native [HTMLCanvasElement.toBlob()](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob) method to do the compression work, which means it is **lossy compression**, **asynchronous**, and has **different compression effects in different browsers**. Generally use this to precompress a image on the client side before uploading it.
 
@@ -50,7 +51,7 @@ dist/
 **安装本增强版本：**
 
 ```shell
-npm install @lookou823/compressorjs
+npm install @liuyongdi/compressorjs
 ```
 
 **或安装原版：**
@@ -88,7 +89,7 @@ The options for compressing. Check out the available [options](#options).
 
 ```js
 import axios from 'axios';
-import Compressor from '@lookou823/compressorjs';
+import Compressor from '@liuyongdi/compressorjs';
 
 document.getElementById('file').addEventListener('change', (e) => {
   const file = e.target.files[0];

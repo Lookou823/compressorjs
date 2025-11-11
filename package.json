@@ -1,5 +1,5 @@
 {
-  "name": "@lookou823/compressorjs",
+  "name": "@liuyongdi/compressorjs",
   "version": "1.2.1-0",
   "description": "基于 compressorjs 的增强版本，支持 Web Worker 优化。JavaScript image compressor with Web Worker support.",
   "main": "dist/compressor.common.js",

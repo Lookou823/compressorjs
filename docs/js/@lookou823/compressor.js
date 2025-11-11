@@ -1,17 +1,17 @@
 /*!
- * Compressor.js v1.2.1-0
+ * Lookou823Compressor.js v1.2.1-0
  * https://github.com/Lookou823/compressorjs#readme
  *
  * Copyright 2018-present Lookou823
  * Released under the MIT license
  *
- * Date: 2025-11-11T06:42:53.049Z
+ * Date: 2025-11-11T06:40:12.570Z
  */
 
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
   typeof define === 'function' && define.amd ? define(factory) :
-  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.Compressor = factory());
+  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.Lookou823Compressor = factory());
 })(this, (function () { 'use strict';
 
   function asyncGeneratorStep(n, t, e, r, o, a, c) {

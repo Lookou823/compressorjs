@@ -1,99 +1,406 @@
 /*!
- * Compressor.js v1.2.1
- * https://fengyuanchen.github.io/compressorjs
+ * Compressor.js v1.2.1-0
+ * https://github.com/Lookou823/compressorjs#readme
  *
- * Copyright 2018-present Chen Fengyuan
+ * Copyright 2018-present Lookou823
  * Released under the MIT license
  *
- * Date: 2023-02-28T14:09:41.732Z
+ * Date: 2025-11-11T06:42:53.049Z
  */
 
 'use strict';
 
-function ownKeys(object, enumerableOnly) {
-  var keys = Object.keys(object);
-  if (Object.getOwnPropertySymbols) {
-    var symbols = Object.getOwnPropertySymbols(object);
-    enumerableOnly && (symbols = symbols.filter(function (sym) {
-      return Object.getOwnPropertyDescriptor(object, sym).enumerable;
-    })), keys.push.apply(keys, symbols);
+function asyncGeneratorStep(n, t, e, r, o, a, c) {
+  try {
+    var i = n[a](c),
+      u = i.value;
+  } catch (n) {
+    return void e(n);
   }
-  return keys;
+  i.done ? t(u) : Promise.resolve(u).then(r, o);
 }
-function _objectSpread2(target) {
-  for (var i = 1; i < arguments.length; i++) {
-    var source = null != arguments[i] ? arguments[i] : {};
-    i % 2 ? ownKeys(Object(source), !0).forEach(function (key) {
-      _defineProperty(target, key, source[key]);
-    }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys(Object(source)).forEach(function (key) {
-      Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
+function _asyncToGenerator(n) {
+  return function () {
+    var t = this,
+      e = arguments;
+    return new Promise(function (r, o) {
+      var a = n.apply(t, e);
+      function _next(n) {
+        asyncGeneratorStep(a, r, o, _next, _throw, "next", n);
+      }
+      function _throw(n) {
+        asyncGeneratorStep(a, r, o, _next, _throw, "throw", n);
+      }
+      _next(void 0);
     });
-  }
-  return target;
+  };
 }
-function _classCallCheck(instance, Constructor) {
-  if (!(instance instanceof Constructor)) {
-    throw new TypeError("Cannot call a class as a function");
-  }
+function _classCallCheck(a, n) {
+  if (!(a instanceof n)) throw new TypeError("Cannot call a class as a function");
 }
-function _defineProperties(target, props) {
-  for (var i = 0; i < props.length; i++) {
-    var descriptor = props[i];
-    descriptor.enumerable = descriptor.enumerable || false;
-    descriptor.configurable = true;
-    if ("value" in descriptor) descriptor.writable = true;
-    Object.defineProperty(target, _toPropertyKey(descriptor.key), descriptor);
+function _defineProperties(e, r) {
+  for (var t = 0; t < r.length; t++) {
+    var o = r[t];
+    o.enumerable = o.enumerable || !1, o.configurable = !0, "value" in o && (o.writable = !0), Object.defineProperty(e, _toPropertyKey(o.key), o);
   }
 }
-function _createClass(Constructor, protoProps, staticProps) {
-  if (protoProps) _defineProperties(Constructor.prototype, protoProps);
-  if (staticProps) _defineProperties(Constructor, staticProps);
-  Object.defineProperty(Constructor, "prototype", {
-    writable: false
-  });
-  return Constructor;
+function _createClass(e, r, t) {
+  return r && _defineProperties(e.prototype, r), t && _defineProperties(e, t), Object.defineProperty(e, "prototype", {
+    writable: !1
+  }), e;
 }
-function _defineProperty(obj, key, value) {
-  key = _toPropertyKey(key);
-  if (key in obj) {
-    Object.defineProperty(obj, key, {
-      value: value,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    });
-  } else {
-    obj[key] = value;
-  }
-  return obj;
+function _defineProperty(e, r, t) {
+  return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+    value: t,
+    enumerable: !0,
+    configurable: !0,
+    writable: !0
+  }) : e[r] = t, e;
 }
 function _extends() {
-  _extends = Object.assign ? Object.assign.bind() : function (target) {
-    for (var i = 1; i < arguments.length; i++) {
-      var source = arguments[i];
-      for (var key in source) {
-        if (Object.prototype.hasOwnProperty.call(source, key)) {
-          target[key] = source[key];
+  return _extends = Object.assign ? Object.assign.bind() : function (n) {
+    for (var e = 1; e < arguments.length; e++) {
+      var t = arguments[e];
+      for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]);
+    }
+    return n;
+  }, _extends.apply(null, arguments);
+}
+function ownKeys(e, r) {
+  var t = Object.keys(e);
+  if (Object.getOwnPropertySymbols) {
+    var o = Object.getOwnPropertySymbols(e);
+    r && (o = o.filter(function (r) {
+      return Object.getOwnPropertyDescriptor(e, r).enumerable;
+    })), t.push.apply(t, o);
+  }
+  return t;
+}
+function _objectSpread2(e) {
+  for (var r = 1; r < arguments.length; r++) {
+    var t = null != arguments[r] ? arguments[r] : {};
+    r % 2 ? ownKeys(Object(t), !0).forEach(function (r) {
+      _defineProperty(e, r, t[r]);
+    }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) {
+      Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r));
+    });
+  }
+  return e;
+}
+function _regeneratorRuntime() {
+  _regeneratorRuntime = function () {
+    return e;
+  };
+  var t,
+    e = {},
+    r = Object.prototype,
+    n = r.hasOwnProperty,
+    o = Object.defineProperty || function (t, e, r) {
+      t[e] = r.value;
+    },
+    i = "function" == typeof Symbol ? Symbol : {},
+    a = i.iterator || "@@iterator",
+    c = i.asyncIterator || "@@asyncIterator",
+    u = i.toStringTag || "@@toStringTag";
+  function define(t, e, r) {
+    return Object.defineProperty(t, e, {
+      value: r,
+      enumerable: !0,
+      configurable: !0,
+      writable: !0
+    }), t[e];
+  }
+  try {
+    define({}, "");
+  } catch (t) {
+    define = function (t, e, r) {
+      return t[e] = r;
+    };
+  }
+  function wrap(t, e, r, n) {
+    var i = e && e.prototype instanceof Generator ? e : Generator,
+      a = Object.create(i.prototype),
+      c = new Context(n || []);
+    return o(a, "_invoke", {
+      value: makeInvokeMethod(t, r, c)
+    }), a;
+  }
+  function tryCatch(t, e, r) {
+    try {
+      return {
+        type: "normal",
+        arg: t.call(e, r)
+      };
+    } catch (t) {
+      return {
+        type: "throw",
+        arg: t
+      };
+    }
+  }
+  e.wrap = wrap;
+  var h = "suspendedStart",
+    l = "suspendedYield",
+    f = "executing",
+    s = "completed",
+    y = {};
+  function Generator() {}
+  function GeneratorFunction() {}
+  function GeneratorFunctionPrototype() {}
+  var p = {};
+  define(p, a, function () {
+    return this;
+  });
+  var d = Object.getPrototypeOf,
+    v = d && d(d(values([])));
+  v && v !== r && n.call(v, a) && (p = v);
+  var g = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(p);
+  function defineIteratorMethods(t) {
+    ["next", "throw", "return"].forEach(function (e) {
+      define(t, e, function (t) {
+        return this._invoke(e, t);
+      });
+    });
+  }
+  function AsyncIterator(t, e) {
+    function invoke(r, o, i, a) {
+      var c = tryCatch(t[r], t, o);
+      if ("throw" !== c.type) {
+        var u = c.arg,
+          h = u.value;
+        return h && "object" == typeof h && n.call(h, "__await") ? e.resolve(h.__await).then(function (t) {
+          invoke("next", t, i, a);
+        }, function (t) {
+          invoke("throw", t, i, a);
+        }) : e.resolve(h).then(function (t) {
+          u.value = t, i(u);
+        }, function (t) {
+          return invoke("throw", t, i, a);
+        });
+      }
+      a(c.arg);
+    }
+    var r;
+    o(this, "_invoke", {
+      value: function (t, n) {
+        function callInvokeWithMethodAndArg() {
+          return new e(function (e, r) {
+            invoke(t, n, e, r);
+          });
         }
+        return r = r ? r.then(callInvokeWithMethodAndArg, callInvokeWithMethodAndArg) : callInvokeWithMethodAndArg();
+      }
+    });
+  }
+  function makeInvokeMethod(e, r, n) {
+    var o = h;
+    return function (i, a) {
+      if (o === f) throw Error("Generator is already running");
+      if (o === s) {
+        if ("throw" === i) throw a;
+        return {
+          value: t,
+          done: !0
+        };
+      }
+      for (n.method = i, n.arg = a;;) {
+        var c = n.delegate;
+        if (c) {
+          var u = maybeInvokeDelegate(c, n);
+          if (u) {
+            if (u === y) continue;
+            return u;
+          }
+        }
+        if ("next" === n.method) n.sent = n._sent = n.arg;else if ("throw" === n.method) {
+          if (o === h) throw o = s, n.arg;
+          n.dispatchException(n.arg);
+        } else "return" === n.method && n.abrupt("return", n.arg);
+        o = f;
+        var p = tryCatch(e, r, n);
+        if ("normal" === p.type) {
+          if (o = n.done ? s : l, p.arg === y) continue;
+          return {
+            value: p.arg,
+            done: n.done
+          };
+        }
+        "throw" === p.type && (o = s, n.method = "throw", n.arg = p.arg);
+      }
+    };
+  }
+  function maybeInvokeDelegate(e, r) {
+    var n = r.method,
+      o = e.iterator[n];
+    if (o === t) return r.delegate = null, "throw" === n && e.iterator.return && (r.method = "return", r.arg = t, maybeInvokeDelegate(e, r), "throw" === r.method) || "return" !== n && (r.method = "throw", r.arg = new TypeError("The iterator does not provide a '" + n + "' method")), y;
+    var i = tryCatch(o, e.iterator, r.arg);
+    if ("throw" === i.type) return r.method = "throw", r.arg = i.arg, r.delegate = null, y;
+    var a = i.arg;
+    return a ? a.done ? (r[e.resultName] = a.value, r.next = e.nextLoc, "return" !== r.method && (r.method = "next", r.arg = t), r.delegate = null, y) : a : (r.method = "throw", r.arg = new TypeError("iterator result is not an object"), r.delegate = null, y);
+  }
+  function pushTryEntry(t) {
+    var e = {
+      tryLoc: t[0]
+    };
+    1 in t && (e.catchLoc = t[1]), 2 in t && (e.finallyLoc = t[2], e.afterLoc = t[3]), this.tryEntries.push(e);
+  }
+  function resetTryEntry(t) {
+    var e = t.completion || {};
+    e.type = "normal", delete e.arg, t.completion = e;
+  }
+  function Context(t) {
+    this.tryEntries = [{
+      tryLoc: "root"
+    }], t.forEach(pushTryEntry, this), this.reset(!0);
+  }
+  function values(e) {
+    if (e || "" === e) {
+      var r = e[a];
+      if (r) return r.call(e);
+      if ("function" == typeof e.next) return e;
+      if (!isNaN(e.length)) {
+        var o = -1,
+          i = function next() {
+            for (; ++o < e.length;) if (n.call(e, o)) return next.value = e[o], next.done = !1, next;
+            return next.value = t, next.done = !0, next;
+          };
+        return i.next = i;
       }
     }
-    return target;
-  };
-  return _extends.apply(this, arguments);
+    throw new TypeError(typeof e + " is not iterable");
+  }
+  return GeneratorFunction.prototype = GeneratorFunctionPrototype, o(g, "constructor", {
+    value: GeneratorFunctionPrototype,
+    configurable: !0
+  }), o(GeneratorFunctionPrototype, "constructor", {
+    value: GeneratorFunction,
+    configurable: !0
+  }), GeneratorFunction.displayName = define(GeneratorFunctionPrototype, u, "GeneratorFunction"), e.isGeneratorFunction = function (t) {
+    var e = "function" == typeof t && t.constructor;
+    return !!e && (e === GeneratorFunction || "GeneratorFunction" === (e.displayName || e.name));
+  }, e.mark = function (t) {
+    return Object.setPrototypeOf ? Object.setPrototypeOf(t, GeneratorFunctionPrototype) : (t.__proto__ = GeneratorFunctionPrototype, define(t, u, "GeneratorFunction")), t.prototype = Object.create(g), t;
+  }, e.awrap = function (t) {
+    return {
+      __await: t
+    };
+  }, defineIteratorMethods(AsyncIterator.prototype), define(AsyncIterator.prototype, c, function () {
+    return this;
+  }), e.AsyncIterator = AsyncIterator, e.async = function (t, r, n, o, i) {
+    void 0 === i && (i = Promise);
+    var a = new AsyncIterator(wrap(t, r, n, o), i);
+    return e.isGeneratorFunction(r) ? a : a.next().then(function (t) {
+      return t.done ? t.value : a.next();
+    });
+  }, defineIteratorMethods(g), define(g, u, "Generator"), define(g, a, function () {
+    return this;
+  }), define(g, "toString", function () {
+    return "[object Generator]";
+  }), e.keys = function (t) {
+    var e = Object(t),
+      r = [];
+    for (var n in e) r.push(n);
+    return r.reverse(), function next() {
+      for (; r.length;) {
+        var t = r.pop();
+        if (t in e) return next.value = t, next.done = !1, next;
+      }
+      return next.done = !0, next;
+    };
+  }, e.values = values, Context.prototype = {
+    constructor: Context,
+    reset: function (e) {
+      if (this.prev = 0, this.next = 0, this.sent = this._sent = t, this.done = !1, this.delegate = null, this.method = "next", this.arg = t, this.tryEntries.forEach(resetTryEntry), !e) for (var r in this) "t" === r.charAt(0) && n.call(this, r) && !isNaN(+r.slice(1)) && (this[r] = t);
+    },
+    stop: function () {
+      this.done = !0;
+      var t = this.tryEntries[0].completion;
+      if ("throw" === t.type) throw t.arg;
+      return this.rval;
+    },
+    dispatchException: function (e) {
+      if (this.done) throw e;
+      var r = this;
+      function handle(n, o) {
+        return a.type = "throw", a.arg = e, r.next = n, o && (r.method = "next", r.arg = t), !!o;
+      }
+      for (var o = this.tryEntries.length - 1; o >= 0; --o) {
+        var i = this.tryEntries[o],
+          a = i.completion;
+        if ("root" === i.tryLoc) return handle("end");
+        if (i.tryLoc <= this.prev) {
+          var c = n.call(i, "catchLoc"),
+            u = n.call(i, "finallyLoc");
+          if (c && u) {
+            if (this.prev < i.catchLoc) return handle(i.catchLoc, !0);
+            if (this.prev < i.finallyLoc) return handle(i.finallyLoc);
+          } else if (c) {
+            if (this.prev < i.catchLoc) return handle(i.catchLoc, !0);
+          } else {
+            if (!u) throw Error("try statement without catch or finally");
+            if (this.prev < i.finallyLoc) return handle(i.finallyLoc);
+          }
+        }
+      }
+    },
+    abrupt: function (t, e) {
+      for (var r = this.tryEntries.length - 1; r >= 0; --r) {
+        var o = this.tryEntries[r];
+        if (o.tryLoc <= this.prev && n.call(o, "finallyLoc") && this.prev < o.finallyLoc) {
+          var i = o;
+          break;
+        }
+      }
+      i && ("break" === t || "continue" === t) && i.tryLoc <= e && e <= i.finallyLoc && (i = null);
+      var a = i ? i.completion : {};
+      return a.type = t, a.arg = e, i ? (this.method = "next", this.next = i.finallyLoc, y) : this.complete(a);
+    },
+    complete: function (t, e) {
+      if ("throw" === t.type) throw t.arg;
+      return "break" === t.type || "continue" === t.type ? this.next = t.arg : "return" === t.type ? (this.rval = this.arg = t.arg, this.method = "return", this.next = "end") : "normal" === t.type && e && (this.next = e), y;
+    },
+    finish: function (t) {
+      for (var e = this.tryEntries.length - 1; e >= 0; --e) {
+        var r = this.tryEntries[e];
+        if (r.finallyLoc === t) return this.complete(r.completion, r.afterLoc), resetTryEntry(r), y;
+      }
+    },
+    catch: function (t) {
+      for (var e = this.tryEntries.length - 1; e >= 0; --e) {
+        var r = this.tryEntries[e];
+        if (r.tryLoc === t) {
+          var n = r.completion;
+          if ("throw" === n.type) {
+            var o = n.arg;
+            resetTryEntry(r);
+          }
+          return o;
+        }
+      }
+      throw Error("illegal catch attempt");
+    },
+    delegateYield: function (e, r, n) {
+      return this.delegate = {
+        iterator: values(e),
+        resultName: r,
+        nextLoc: n
+      }, "next" === this.method && (this.arg = t), y;
+    }
+  }, e;
 }
-function _toPrimitive(input, hint) {
-  if (typeof input !== "object" || input === null) return input;
-  var prim = input[Symbol.toPrimitive];
-  if (prim !== undefined) {
-    var res = prim.call(input, hint || "default");
-    if (typeof res !== "object") return res;
+function _toPrimitive(t, r) {
+  if ("object" != typeof t || !t) return t;
+  var e = t[Symbol.toPrimitive];
+  if (void 0 !== e) {
+    var i = e.call(t, r || "default");
+    if ("object" != typeof i) return i;
     throw new TypeError("@@toPrimitive must return a primitive value.");
   }
-  return (hint === "string" ? String : Number)(input);
+  return ("string" === r ? String : Number)(t);
 }
-function _toPropertyKey(arg) {
-  var key = _toPrimitive(arg, "string");
-  return typeof key === "symbol" ? key : String(key);
+function _toPropertyKey(t) {
+  var i = _toPrimitive(t, "string");
+  return "symbol" == typeof i ? i : i + "";
 }
 
 var canvasToBlob = {exports: {}};
@@ -234,7 +541,7 @@ var DEFAULTS = {
   /**
    * Indicates if retain the image's Exif information after compressed.
    * @type {boolean}
-  */
+   */
   retainExif: false,
   /**
    * The max width of the output image.
@@ -273,7 +580,7 @@ var DEFAULTS = {
    * specified by the `width` and `height` options.
    * @type {string}
    */
-  resize: 'none',
+  resize: "none",
   /**
    * The quality of the output image.
    * It must be a number between `0` and `1`,
@@ -287,13 +594,13 @@ var DEFAULTS = {
    * By default, the original mime type of the source image file will be used.
    * @type {string}
    */
-  mimeType: 'auto',
+  mimeType: "auto",
   /**
    * Files whose file type is included in this list,
    * and whose file size exceeds the `convertSize` value will be converted to JPEGs.
    * @type {string｜Array}
    */
-  convertTypes: ['image/png'],
+  convertTypes: ["image/png"],
   /**
    * PNG files over this size (5 MB by default) will be converted to JPEGs.
    * To disable this, just set the value to `Infinity`.
@@ -341,7 +648,23 @@ var DEFAULTS = {
    *   console.log(err.message);
    * }
    */
-  error: null
+  error: null,
+  /**
+   * Indicates whether to use Web Worker for image compression.
+   * When enabled, canvas operations will be performed in a separate thread,
+   * preventing blocking of the main thread.
+   * @type {boolean}
+   * @default undefined (auto-detected based on browser support)
+   */
+  useWorker: undefined,
+  // Will be auto-detected based on browser support
+
+  /**
+   * Path to the worker file. If not provided, inline worker code will be used.
+   * @type {string}
+   * @default undefined
+   */
+  workerPath: undefined
 };
 
 var IS_BROWSER = typeof window !== 'undefined' && typeof window.document !== 'undefined';
@@ -648,10 +971,120 @@ function insertExif(arrayBuffer, exifArray) {
 }
 
 var ArrayBuffer$1 = WINDOW.ArrayBuffer,
-  FileReader = WINDOW.FileReader;
+  FileReader = WINDOW.FileReader,
+  Worker = WINDOW.Worker;
 var URL = WINDOW.URL || WINDOW.webkitURL;
 var REGEXP_EXTENSION = /\.\w+$/;
 var AnotherCompressor = WINDOW.Compressor;
+
+/**
+ * Check if OffscreenCanvas is supported
+ */
+function isOffscreenCanvasSupported() {
+  return typeof OffscreenCanvas !== "undefined" && typeof Worker !== "undefined";
+}
+
+/**
+ * Worker manager for image compression
+ */
+var WorkerManager = /*#__PURE__*/function () {
+  function WorkerManager() {
+    _classCallCheck(this, WorkerManager);
+    this.worker = null;
+    this.workerURL = null;
+    this.taskId = 0;
+    this.pendingTasks = new Map();
+  }
+
+  /**
+   * Initialize worker with blob URL
+   */
+  return _createClass(WorkerManager, [{
+    key: "initWorker",
+    value: function initWorker(workerCode) {
+      var _this = this;
+      if (this.worker) {
+        return Promise.resolve();
+      }
+      return new Promise(function (resolve, reject) {
+        try {
+          var blob = new Blob([workerCode], {
+            type: "application/javascript"
+          });
+          _this.workerURL = URL.createObjectURL(blob);
+          _this.worker = new Worker(_this.workerURL);
+          _this.worker.onmessage = function (e) {
+            var _e$data = e.data,
+              taskId = _e$data.taskId,
+              success = _e$data.success,
+              arrayBuffer = _e$data.arrayBuffer,
+              mimeType = _e$data.mimeType,
+              error = _e$data.error;
+            var task = _this.pendingTasks.get(taskId);
+            if (task) {
+              _this.pendingTasks.delete(taskId);
+              if (success) {
+                var _blob = new Blob([arrayBuffer], {
+                  type: mimeType
+                });
+                task.resolve(_blob);
+              } else {
+                task.reject(new Error(error || "Worker compression failed"));
+              }
+            }
+          };
+          _this.worker.onerror = function (error) {
+            reject(error);
+          };
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+
+    /**
+     * Compress image using worker
+     */
+  }, {
+    key: "compress",
+    value: function compress(data) {
+      var _this2 = this;
+      return new Promise(function (resolve, reject) {
+        if (!_this2.worker) {
+          reject(new Error("Worker not initialized"));
+          return;
+        }
+        var taskId = ++_this2.taskId;
+        _this2.pendingTasks.set(taskId, {
+          resolve: resolve,
+          reject: reject
+        });
+        _this2.worker.postMessage(_objectSpread2(_objectSpread2({}, data), {}, {
+          taskId: taskId
+        }));
+      });
+    }
+
+    /**
+     * Terminate worker
+     */
+  }, {
+    key: "terminate",
+    value: function terminate() {
+      if (this.worker) {
+        this.worker.terminate();
+        this.worker = null;
+      }
+      if (this.workerURL) {
+        URL.revokeObjectURL(this.workerURL);
+        this.workerURL = null;
+      }
+      this.pendingTasks.clear();
+    }
+  }]);
+}(); // Shared worker manager instance
+var workerManager = null;
 
 /**
  * Creates a new image compressor.
@@ -671,32 +1104,34 @@ var Compressor = /*#__PURE__*/function () {
     this.options = _objectSpread2(_objectSpread2({}, DEFAULTS), options);
     this.aborted = false;
     this.result = null;
+    this.useWorker = false;
+    this.workerInitialized = false;
     this.init();
   }
-  _createClass(Compressor, [{
+  return _createClass(Compressor, [{
     key: "init",
     value: function init() {
-      var _this = this;
+      var _this3 = this;
       var file = this.file,
         options = this.options;
       if (!isBlob(file)) {
-        this.fail(new Error('The first argument must be a File or Blob object.'));
+        this.fail(new Error("The first argument must be a File or Blob object."));
         return;
       }
       var mimeType = file.type;
       if (!isImageType(mimeType)) {
-        this.fail(new Error('The first argument must be an image File or Blob object.'));
+        this.fail(new Error("The first argument must be an image File or Blob object."));
         return;
       }
       if (!URL || !FileReader) {
-        this.fail(new Error('The current browser does not support image compression.'));
+        this.fail(new Error("The current browser does not support image compression."));
         return;
       }
       if (!ArrayBuffer$1) {
         options.checkOrientation = false;
         options.retainExif = false;
       }
-      var isJPEGImage = mimeType === 'image/jpeg';
+      var isJPEGImage = mimeType === "image/jpeg";
       var checkOrientation = isJPEGImage && options.checkOrientation;
       var retainExif = isJPEGImage && options.retainExif;
       if (URL && !checkOrientation && !retainExif) {
@@ -720,13 +1155,12 @@ var Compressor = /*#__PURE__*/function () {
             }
           }
           if (retainExif) {
-            _this.exif = getExif(result);
+            _this3.exif = getExif(result);
           }
           if (checkOrientation || retainExif) {
-            if (!URL
-
+            if (!URL ||
             // Generate a new URL with the default orientation value 1.
-            || orientation > 1) {
+            orientation > 1) {
               data.url = arrayBufferToDataURL(result, mimeType);
             } else {
               data.url = URL.createObjectURL(file);
@@ -734,16 +1168,16 @@ var Compressor = /*#__PURE__*/function () {
           } else {
             data.url = result;
           }
-          _this.load(data);
+          _this3.load(data);
         };
         reader.onabort = function () {
-          _this.fail(new Error('Aborted to read the image with FileReader.'));
+          _this3.fail(new Error("Aborted to read the image with FileReader."));
         };
         reader.onerror = function () {
-          _this.fail(new Error('Failed to read the image with FileReader.'));
+          _this3.fail(new Error("Failed to read the image with FileReader."));
         };
         reader.onloadend = function () {
-          _this.reader = null;
+          _this3.reader = null;
         };
         if (checkOrientation || retainExif) {
           reader.readAsArrayBuffer(file);
@@ -755,50 +1189,277 @@ var Compressor = /*#__PURE__*/function () {
   }, {
     key: "load",
     value: function load(data) {
-      var _this2 = this;
+      var _this4 = this;
+      this.file;
+        this.image;
+        var options = this.options;
+
+      // Check if we should use Worker
+      var shouldUseWorker = options.useWorker !== false && (options.useWorker === true || options.useWorker === undefined && isOffscreenCanvasSupported());
+      if (shouldUseWorker && !this.workerInitialized) {
+        this.initializeWorker().then(function () {
+          _this4.useWorker = true;
+          _this4.workerInitialized = true;
+          _this4.proceedWithLoad(data);
+        }).catch(function () {
+          // Fallback to main thread if worker initialization fails
+          _this4.useWorker = false;
+          _this4.workerInitialized = true;
+          _this4.proceedWithLoad(data);
+        });
+      } else {
+        this.proceedWithLoad(data);
+      }
+    }
+  }, {
+    key: "proceedWithLoad",
+    value: function proceedWithLoad(data) {
+      var _this5 = this;
       var file = this.file,
         image = this.image;
       image.onload = function () {
-        _this2.draw(_objectSpread2(_objectSpread2({}, data), {}, {
+        _this5.draw(_objectSpread2(_objectSpread2({}, data), {}, {
           naturalWidth: image.naturalWidth,
           naturalHeight: image.naturalHeight
         }));
       };
       image.onabort = function () {
-        _this2.fail(new Error('Aborted to load the image.'));
+        _this5.fail(new Error("Aborted to load the image."));
       };
       image.onerror = function () {
-        _this2.fail(new Error('Failed to load the image.'));
+        _this5.fail(new Error("Failed to load the image."));
       };
 
       // Match all browsers that use WebKit as the layout engine in iOS devices,
       // such as Safari for iOS, Chrome for iOS, and in-app browsers.
       if (WINDOW.navigator && /(?:iPad|iPhone|iPod).*?AppleWebKit/i.test(WINDOW.navigator.userAgent)) {
         // Fix the `The operation is insecure` error (#57)
-        image.crossOrigin = 'anonymous';
+        image.crossOrigin = "anonymous";
       }
       image.alt = file.name;
       image.src = data.url;
     }
   }, {
+    key: "initializeWorker",
+    value: function () {
+      var _initializeWorker = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee() {
+        var workerPath, workerCode, response;
+        return _regeneratorRuntime().wrap(function _callee$(_context) {
+          while (1) switch (_context.prev = _context.next) {
+            case 0:
+              if (!workerManager) {
+                workerManager = new WorkerManager();
+              }
+
+              // Try to load worker code
+              // First, try to fetch from a configured path
+              workerPath = this.options.workerPath;
+              workerCode = null;
+              if (!workerPath) {
+                _context.next = 16;
+                break;
+              }
+              _context.prev = 4;
+              _context.next = 7;
+              return fetch(workerPath);
+            case 7:
+              response = _context.sent;
+              _context.next = 10;
+              return response.text();
+            case 10:
+              workerCode = _context.sent;
+              _context.next = 16;
+              break;
+            case 13:
+              _context.prev = 13;
+              _context.t0 = _context["catch"](4);
+              // If fetch fails, try to use inline worker code
+              console.warn("Failed to load worker from path, using inline code");
+            case 16:
+              // If no worker code loaded, use inline code
+              if (!workerCode) {
+                workerCode = this.getInlineWorkerCode();
+              }
+              _context.next = 19;
+              return workerManager.initWorker(workerCode);
+            case 19:
+            case "end":
+              return _context.stop();
+          }
+        }, _callee, this, [[4, 13]]);
+      }));
+      function initializeWorker() {
+        return _initializeWorker.apply(this, arguments);
+      }
+      return initializeWorker;
+    }()
+  }, {
+    key: "getInlineWorkerCode",
+    value: function getInlineWorkerCode() {
+      // Return the worker code as a string
+      // This will be replaced with actual worker code during build or runtime
+      return "self.onmessage=async function(e){const{imageDataURL,naturalWidth,naturalHeight,rotate=0,scaleX=1,scaleY=1,options,taskId}=e.data;try{function isPositiveNumber(v){return v>0&&v<Infinity}function normalizeDecimalNumber(v,t=1e11){return/.\\d*(?:0|9){12}\\d*$/.test(v)?Math.round(v*t)/t:v}function getAdjustedSizes({aspectRatio,height,width},type='none'){const iw=isPositiveNumber(width),ih=isPositiveNumber(height);if(iw&&ih){const aw=height*aspectRatio;if((type==='contain'||type==='none')&&aw>width||type==='cover'&&aw<width)height=width/aspectRatio;else width=height*aspectRatio}else if(iw)height=width/aspectRatio;else if(ih)width=height*aspectRatio;return{width,height}}function isImageType(v){return/^image\\/.+$/.test(v)}const is90=Math.abs(rotate)%180===90,resizable=(options.resize==='contain'||options.resize==='cover')&&isPositiveNumber(options.width)&&isPositiveNumber(options.height);let mw=Math.max(options.maxWidth,0)||Infinity,mh=Math.max(options.maxHeight,0)||Infinity,minw=Math.max(options.minWidth,0)||0,minh=Math.max(options.minHeight,0)||0,ar=naturalWidth/naturalHeight,w=options.width,h=options.height;if(is90){[mw,mh]=[mh,mw];[minw,minh]=[minh,minw];[w,h]=[h,w]}if(resizable)ar=w/h;({width:mw,height:mh}=getAdjustedSizes({aspectRatio:ar,width:mw,height:mh},'contain'));({width:minw,height:minh}=getAdjustedSizes({aspectRatio:ar,width:minw,height:minh},'cover'));if(resizable)({width:w,height:h}=getAdjustedSizes({aspectRatio:ar,width:w,height:h},options.resize));else({width:w=naturalWidth,height:h=naturalHeight}=getAdjustedSizes({aspectRatio:ar,width:w,height:h}));w=Math.floor(normalizeDecimalNumber(Math.min(Math.max(w,minw),mw)));h=Math.floor(normalizeDecimalNumber(Math.min(Math.max(h,minh),mh)));let mt=options.mimeType;if(!isImageType(mt))mt=options.originalMimeType||'image/jpeg';if(options.fileSize>options.convertSize&&options.convertTypes.indexOf(mt)>=0)mt='image/jpeg';const isJpeg=mt==='image/jpeg';if(is90)[w,h]=[h,w];const canvas=new OffscreenCanvas(w,h),ctx=canvas.getContext('2d');ctx.fillStyle=isJpeg?'#fff':'transparent';ctx.fillRect(0,0,w,h);const img=new Image();await new Promise((r,j)=>{img.onload=r;img.onerror=j;img.src=imageDataURL});const dx=-w/2,dy=-h/2,dw=w,dh=h,params=[];if(resizable){let sx=0,sy=0,sw=naturalWidth,sh=naturalHeight;({width:sw,height:sh}=getAdjustedSizes({aspectRatio:ar,width:naturalWidth,height:naturalHeight},{contain:'cover',cover:'contain'}[options.resize]));sx=(naturalWidth-sw)/2;sy=(naturalHeight-sh)/2;params.push(sx,sy,sw,sh)}params.push(dx,dy,dw,dh);ctx.save();ctx.translate(w/2,h/2);ctx.rotate(rotate*Math.PI/180);ctx.scale(scaleX,scaleY);ctx.drawImage(img,...params);ctx.restore();const blob=await canvas.convertToBlob({type:mt,quality:options.quality}),ab=await blob.arrayBuffer();self.postMessage({taskId,success:true,arrayBuffer:ab,mimeType:mt},[ab])}catch(e){self.postMessage({taskId,success:false,error:e.message||'Unknown error'})}};";
+    }
+  }, {
     key: "draw",
-    value: function draw(_ref2) {
-      var _this3 = this;
-      var naturalWidth = _ref2.naturalWidth,
-        naturalHeight = _ref2.naturalHeight,
-        _ref2$rotate = _ref2.rotate,
-        rotate = _ref2$rotate === void 0 ? 0 : _ref2$rotate,
-        _ref2$scaleX = _ref2.scaleX,
-        scaleX = _ref2$scaleX === void 0 ? 1 : _ref2$scaleX,
-        _ref2$scaleY = _ref2.scaleY,
-        scaleY = _ref2$scaleY === void 0 ? 1 : _ref2$scaleY;
+    value: function () {
+      var _draw = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee2(_ref2) {
+        var naturalWidth, naturalHeight, _ref2$rotate, rotate, _ref2$scaleX, scaleX, _ref2$scaleY, scaleY;
+        return _regeneratorRuntime().wrap(function _callee2$(_context2) {
+          while (1) switch (_context2.prev = _context2.next) {
+            case 0:
+              naturalWidth = _ref2.naturalWidth, naturalHeight = _ref2.naturalHeight, _ref2$rotate = _ref2.rotate, rotate = _ref2$rotate === void 0 ? 0 : _ref2$rotate, _ref2$scaleX = _ref2.scaleX, scaleX = _ref2$scaleX === void 0 ? 1 : _ref2$scaleX, _ref2$scaleY = _ref2.scaleY, scaleY = _ref2$scaleY === void 0 ? 1 : _ref2$scaleY;
+              this.file, this.image, this.options; // Use Worker if enabled and available
+              if (!(this.useWorker && workerManager && workerManager.worker)) {
+                _context2.next = 4;
+                break;
+              }
+              return _context2.abrupt("return", this.drawWithWorker({
+                naturalWidth: naturalWidth,
+                naturalHeight: naturalHeight,
+                rotate: rotate,
+                scaleX: scaleX,
+                scaleY: scaleY
+              }));
+            case 4:
+              return _context2.abrupt("return", this.drawOnMainThread({
+                naturalWidth: naturalWidth,
+                naturalHeight: naturalHeight,
+                rotate: rotate,
+                scaleX: scaleX,
+                scaleY: scaleY
+              }));
+            case 5:
+            case "end":
+              return _context2.stop();
+          }
+        }, _callee2, this);
+      }));
+      function draw(_x) {
+        return _draw.apply(this, arguments);
+      }
+      return draw;
+    }()
+  }, {
+    key: "drawWithWorker",
+    value: function () {
+      var _drawWithWorker = _asyncToGenerator(/*#__PURE__*/_regeneratorRuntime().mark(function _callee3(_ref3) {
+        var naturalWidth, naturalHeight, _ref3$rotate, rotate, _ref3$scaleX, scaleX, _ref3$scaleY, scaleY, file, image, options, imageDataURL, response, blob, _blob2, resultMimeType, isJPEGImage;
+        return _regeneratorRuntime().wrap(function _callee3$(_context3) {
+          while (1) switch (_context3.prev = _context3.next) {
+            case 0:
+              naturalWidth = _ref3.naturalWidth, naturalHeight = _ref3.naturalHeight, _ref3$rotate = _ref3.rotate, rotate = _ref3$rotate === void 0 ? 0 : _ref3$rotate, _ref3$scaleX = _ref3.scaleX, scaleX = _ref3$scaleX === void 0 ? 1 : _ref3$scaleX, _ref3$scaleY = _ref3.scaleY, scaleY = _ref3$scaleY === void 0 ? 1 : _ref3$scaleY;
+              file = this.file, image = this.image, options = this.options; // Convert image to data URL for worker
+              if (!image.src.startsWith("data:")) {
+                _context3.next = 6;
+                break;
+              }
+              imageDataURL = image.src;
+              _context3.next = 19;
+              break;
+            case 6:
+              if (!image.src.startsWith("blob:")) {
+                _context3.next = 18;
+                break;
+              }
+              _context3.next = 9;
+              return fetch(image.src);
+            case 9:
+              response = _context3.sent;
+              _context3.next = 12;
+              return response.blob();
+            case 12:
+              blob = _context3.sent;
+              _context3.next = 15;
+              return new Promise(function (resolve, reject) {
+                var reader = new FileReader();
+                reader.onload = function () {
+                  return resolve(reader.result);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            case 15:
+              imageDataURL = _context3.sent;
+              _context3.next = 19;
+              break;
+            case 18:
+              imageDataURL = image.src;
+            case 19:
+              _context3.prev = 19;
+              _context3.next = 22;
+              return workerManager.compress({
+                imageDataURL: imageDataURL,
+                naturalWidth: naturalWidth,
+                naturalHeight: naturalHeight,
+                rotate: rotate,
+                scaleX: scaleX,
+                scaleY: scaleY,
+                options: _objectSpread2(_objectSpread2({}, options), {}, {
+                  originalMimeType: file.type,
+                  fileSize: file.size
+                })
+              });
+            case 22:
+              _blob2 = _context3.sent;
+              // Determine if result is JPEG
+              resultMimeType = options.mimeType;
+              if (!isImageType(resultMimeType)) {
+                resultMimeType = file.type;
+              }
+              if (file.size > options.convertSize && options.convertTypes.indexOf(resultMimeType) >= 0) {
+                resultMimeType = "image/jpeg";
+              }
+              isJPEGImage = resultMimeType === "image/jpeg";
+              this.handleCompressionResult(_blob2, {
+                naturalWidth: naturalWidth,
+                naturalHeight: naturalHeight,
+                isJPEGImage: isJPEGImage
+              });
+              _context3.next = 34;
+              break;
+            case 30:
+              _context3.prev = 30;
+              _context3.t0 = _context3["catch"](19);
+              // Fallback to main thread on error
+              this.useWorker = false;
+              return _context3.abrupt("return", this.drawOnMainThread({
+                naturalWidth: naturalWidth,
+                naturalHeight: naturalHeight,
+                rotate: rotate,
+                scaleX: scaleX,
+                scaleY: scaleY
+              }));
+            case 34:
+            case "end":
+              return _context3.stop();
+          }
+        }, _callee3, this, [[19, 30]]);
+      }));
+      function drawWithWorker(_x2) {
+        return _drawWithWorker.apply(this, arguments);
+      }
+      return drawWithWorker;
+    }()
+  }, {
+    key: "drawOnMainThread",
+    value: function drawOnMainThread(_ref4) {
+      var _this6 = this;
+      var naturalWidth = _ref4.naturalWidth,
+        naturalHeight = _ref4.naturalHeight,
+        _ref4$rotate = _ref4.rotate,
+        rotate = _ref4$rotate === void 0 ? 0 : _ref4$rotate,
+        _ref4$scaleX = _ref4.scaleX,
+        scaleX = _ref4$scaleX === void 0 ? 1 : _ref4$scaleX,
+        _ref4$scaleY = _ref4.scaleY,
+        scaleY = _ref4$scaleY === void 0 ? 1 : _ref4$scaleY;
       var file = this.file,
         image = this.image,
         options = this.options;
-      var canvas = document.createElement('canvas');
-      var context = canvas.getContext('2d');
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
       var is90DegreesRotated = Math.abs(rotate) % 180 === 90;
-      var resizable = (options.resize === 'contain' || options.resize === 'cover') && isPositiveNumber(options.width) && isPositiveNumber(options.height);
+      var resizable = (options.resize === "contain" || options.resize === "cover") && isPositiveNumber(options.width) && isPositiveNumber(options.height);
       var maxWidth = Math.max(options.maxWidth, 0) || Infinity;
       var maxHeight = Math.max(options.maxHeight, 0) || Infinity;
       var minWidth = Math.max(options.minWidth, 0) || 0;
@@ -807,15 +1468,15 @@ var Compressor = /*#__PURE__*/function () {
       var width = options.width,
         height = options.height;
       if (is90DegreesRotated) {
-        var _ref3 = [maxHeight, maxWidth];
-        maxWidth = _ref3[0];
-        maxHeight = _ref3[1];
-        var _ref4 = [minHeight, minWidth];
-        minWidth = _ref4[0];
-        minHeight = _ref4[1];
-        var _ref5 = [height, width];
-        width = _ref5[0];
-        height = _ref5[1];
+        var _ref5 = [maxHeight, maxWidth];
+        maxWidth = _ref5[0];
+        maxHeight = _ref5[1];
+        var _ref6 = [minHeight, minWidth];
+        minWidth = _ref6[0];
+        minHeight = _ref6[1];
+        var _ref7 = [height, width];
+        width = _ref7[0];
+        height = _ref7[1];
       }
       if (resizable) {
         aspectRatio = width / height;
@@ -824,14 +1485,14 @@ var Compressor = /*#__PURE__*/function () {
         aspectRatio: aspectRatio,
         width: maxWidth,
         height: maxHeight
-      }, 'contain');
+      }, "contain");
       maxWidth = _getAdjustedSizes.width;
       maxHeight = _getAdjustedSizes.height;
       var _getAdjustedSizes2 = getAdjustedSizes({
         aspectRatio: aspectRatio,
         width: minWidth,
         height: minHeight
-      }, 'cover');
+      }, "cover");
       minWidth = _getAdjustedSizes2.width;
       minHeight = _getAdjustedSizes2.height;
       if (resizable) {
@@ -870,8 +1531,8 @@ var Compressor = /*#__PURE__*/function () {
           width: naturalWidth,
           height: naturalHeight
         }, {
-          contain: 'cover',
-          cover: 'contain'
+          contain: "cover",
+          cover: "contain"
         }[options.resize]);
         srcWidth = _getAdjustedSizes5.width;
         srcHeight = _getAdjustedSizes5.height;
@@ -881,24 +1542,24 @@ var Compressor = /*#__PURE__*/function () {
       }
       params.push(destX, destY, destWidth, destHeight);
       if (is90DegreesRotated) {
-        var _ref6 = [height, width];
-        width = _ref6[0];
-        height = _ref6[1];
+        var _ref8 = [height, width];
+        width = _ref8[0];
+        height = _ref8[1];
       }
       canvas.width = width;
       canvas.height = height;
       if (!isImageType(options.mimeType)) {
         options.mimeType = file.type;
       }
-      var fillStyle = 'transparent';
+      var fillStyle = "transparent";
 
       // Converts PNG files over the `convertSize` to JPEGs.
       if (file.size > options.convertSize && options.convertTypes.indexOf(options.mimeType) >= 0) {
-        options.mimeType = 'image/jpeg';
+        options.mimeType = "image/jpeg";
       }
-      var isJPEGImage = options.mimeType === 'image/jpeg';
+      var isJPEGImage = options.mimeType === "image/jpeg";
       if (isJPEGImage) {
-        fillStyle = '#fff';
+        fillStyle = "#fff";
       }
 
       // Override the default fill color (#000, black)
@@ -923,44 +1584,11 @@ var Compressor = /*#__PURE__*/function () {
         return;
       }
       var callback = function callback(blob) {
-        if (!_this3.aborted) {
-          var done = function done(result) {
-            return _this3.done({
-              naturalWidth: naturalWidth,
-              naturalHeight: naturalHeight,
-              result: result
-            });
-          };
-          if (blob && isJPEGImage && options.retainExif && _this3.exif && _this3.exif.length > 0) {
-            var next = function next(arrayBuffer) {
-              return done(toBlob(arrayBufferToDataURL(insertExif(arrayBuffer, _this3.exif), options.mimeType)));
-            };
-            if (blob.arrayBuffer) {
-              blob.arrayBuffer().then(next).catch(function () {
-                _this3.fail(new Error('Failed to read the compressed image with Blob.arrayBuffer().'));
-              });
-            } else {
-              var reader = new FileReader();
-              _this3.reader = reader;
-              reader.onload = function (_ref7) {
-                var target = _ref7.target;
-                next(target.result);
-              };
-              reader.onabort = function () {
-                _this3.fail(new Error('Aborted to read the compressed image with FileReader.'));
-              };
-              reader.onerror = function () {
-                _this3.fail(new Error('Failed to read the compressed image with FileReader.'));
-              };
-              reader.onloadend = function () {
-                _this3.reader = null;
-              };
-              reader.readAsArrayBuffer(blob);
-            }
-          } else {
-            done(blob);
-          }
-        }
+        _this6.handleCompressionResult(blob, {
+          naturalWidth: naturalWidth,
+          naturalHeight: naturalHeight,
+          isJPEGImage: isJPEGImage
+        });
       };
       if (canvas.toBlob) {
         canvas.toBlob(callback, options.mimeType, options.quality);
@@ -969,15 +1597,63 @@ var Compressor = /*#__PURE__*/function () {
       }
     }
   }, {
+    key: "handleCompressionResult",
+    value: function handleCompressionResult(blob, _ref9) {
+      var _this7 = this;
+      var naturalWidth = _ref9.naturalWidth,
+        naturalHeight = _ref9.naturalHeight,
+        isJPEGImage = _ref9.isJPEGImage;
+      var options = this.options;
+      if (this.aborted) {
+        return;
+      }
+      var done = function done(result) {
+        return _this7.done({
+          naturalWidth: naturalWidth,
+          naturalHeight: naturalHeight,
+          result: result
+        });
+      };
+      if (blob && isJPEGImage && options.retainExif && this.exif && this.exif.length > 0) {
+        var next = function next(arrayBuffer) {
+          return done(toBlob(arrayBufferToDataURL(insertExif(arrayBuffer, _this7.exif), options.mimeType)));
+        };
+        if (blob.arrayBuffer) {
+          blob.arrayBuffer().then(next).catch(function () {
+            _this7.fail(new Error("Failed to read the compressed image with Blob.arrayBuffer()."));
+          });
+        } else {
+          var reader = new FileReader();
+          this.reader = reader;
+          reader.onload = function (_ref10) {
+            var target = _ref10.target;
+            next(target.result);
+          };
+          reader.onabort = function () {
+            _this7.fail(new Error("Aborted to read the compressed image with FileReader."));
+          };
+          reader.onerror = function () {
+            _this7.fail(new Error("Failed to read the compressed image with FileReader."));
+          };
+          reader.onloadend = function () {
+            _this7.reader = null;
+          };
+          reader.readAsArrayBuffer(blob);
+        }
+      } else {
+        done(blob);
+      }
+    }
+  }, {
     key: "done",
-    value: function done(_ref8) {
-      var naturalWidth = _ref8.naturalWidth,
-        naturalHeight = _ref8.naturalHeight,
-        result = _ref8.result;
+    value: function done(_ref11) {
+      var naturalWidth = _ref11.naturalWidth,
+        naturalHeight = _ref11.naturalHeight,
+        result = _ref11.result;
       var file = this.file,
         image = this.image,
         options = this.options;
-      if (URL && image.src.indexOf('blob:') === 0) {
+      if (URL && image.src.indexOf("blob:") === 0) {
         URL.revokeObjectURL(image.src);
       }
       if (result) {
@@ -1025,8 +1701,11 @@ var Compressor = /*#__PURE__*/function () {
           this.image.onload = null;
           this.image.onabort();
         } else {
-          this.fail(new Error('The compression process has been aborted.'));
+          this.fail(new Error("The compression process has been aborted."));
         }
+
+        // Cancel pending worker tasks
+        if (this.useWorker && workerManager) ;
       }
     }
 
@@ -1051,7 +1730,6 @@ var Compressor = /*#__PURE__*/function () {
       _extends(DEFAULTS, options);
     }
   }]);
-  return Compressor;
 }();
 
 module.exports = Compressor;

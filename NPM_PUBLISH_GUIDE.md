@@ -6,7 +6,7 @@
 
 在发布前，请确认以下内容已完成：
 
-- [x] ✅ `package.json` 的 `name` 字段已修改为 `@lookou823/compressorjs`（避免与原包冲突）
+- [x] ✅ `package.json` 的 `name` 字段已修改为 `@liuyongdi/compressorjs`（避免与原包冲突，匹配 npm 账号）
 - [x] ✅ `package.json` 的 `version` 字段已更新为 `1.2.1-0`（遵循语义化版本）
 - [x] ✅ `package.json` 的 `description` 字段已明确标注为基于原项目的增强版本
 - [x] ✅ `package.json` 的 `author` 字段已更新为你的信息
@@ -16,18 +16,37 @@
 
 ## 🚀 发布步骤
 
-### 第一步：确保使用 npm 官方源
+### 第一步：安装项目依赖
+
+**⚠️ 重要**：在发布前，必须先安装所有依赖。
+
+```bash
+# 安装所有依赖（包括 devDependencies）
+npm install
+
+# 如果网络较慢，可以使用国内镜像源加速安装
+npm install --registry https://registry.npmmirror.com
+
+# 安装完成后，验证关键依赖是否已安装
+which del-cli
+which husky
+```
+
+**注意**：安装依赖时可能会触发 `prepare` 脚本（husky install），这是正常的。
+
+### 第一步（补充）：确保使用 npm 官方源（用于发布）
 
 ```bash
 # 检查当前 npm 源
 npm config get registry
 
-# 如果不是官方源，切换到官方源
+# 发布时必须使用官方源，切换到官方源
 npm config set registry https://registry.npmjs.org/
 
 # 或者使用 nrm 管理多个源
 npm install -g nrm
-nrm use npm
+nrm use npm  # 发布时使用
+nrm use taobao  # 安装依赖时可以使用淘宝镜像加速
 ```
 
 ### 第二步：登录 npm 账号
@@ -77,7 +96,7 @@ npm login --web
 ```
 
 **重要提示**：
-- 如果使用 scope 包名（如 `@lookou823/compressorjs`），确保你的 npm 账号名与 scope 名称匹配（`lookou823`）
+- 如果使用 scope 包名（如 `@liuyongdi/compressorjs`），确保你的 npm 账号名与 scope 名称匹配（`liuyongdi`）
 - 首次发布 scope 包时，需要确保该 scope 属于你的账号
 - 访问令牌有有效期限制（通常 90 天），过期后需要重新生成
 
@@ -131,10 +150,10 @@ npm publish --access public
 
 ```bash
 # 检查包是否已发布
-npm view @lookou823/compressorjs
+npm view @liuyongdi/compressorjs
 
 # 或者访问 npm 网站查看
-# https://www.npmjs.com/package/@lookou823/compressorjs
+# https://www.npmjs.com/package/@liuyongdi/compressorjs
 ```
 
 ## 🔄 版本更新流程
@@ -181,13 +200,38 @@ npm view @lookou823/compressorjs
 
 ### 问题2：Scope 权限问题
 
-**错误信息**：`You do not have permission to publish "@lookou823/compressorjs"`
+**错误信息**：`You do not have permission to publish "@liuyongdi/compressorjs"` 或 `Scope not found`
 
 **解决方案**：
 - 确认 npm 登录的账号名与 scope 名称匹配
 - 检查是否使用了正确的 npm 账号登录
 
-### 问题2.1：npm login 报错 410 Gone
+### 问题2.1：Scope not found 错误
+
+**错误信息**：`404 Not Found - Scope not found` 或 `'@scope/package@version' is not in this registry`
+
+**原因**：npm 账号名与 package.json 中的 scope 名称不匹配
+
+**解决方案**：
+1. **检查当前登录的 npm 账号**：
+   ```bash
+   npm whoami
+   ```
+
+2. **修改 package.json 中的 scope 名称**，使其与 npm 账号名匹配：
+   ```json
+   {
+     "name": "@你的npm账号名/compressorjs"
+   }
+   ```
+
+3. **重新构建和发布**：
+   ```bash
+   npm run build
+   npm publish --access public
+   ```
+
+### 问题2.2：npm login 报错 410 Gone
 
 **错误信息**：`410 Gone - PUT https://registry.npmjs.org/-/user/org.couchdb.user:username - This route is no longer supported`
 
@@ -232,17 +276,17 @@ npm publish --access public
 
 ```bash
 # 撤销最近发布的版本（24小时内）
-npm unpublish @lookou823/compressorjs@1.2.1-0
+npm unpublish @liuyongdi/compressorjs@1.2.1-0
 
 # 或者标记为废弃
-npm deprecate @lookou823/compressorjs@1.2.1-0 "This version has a critical bug"
+npm deprecate @liuyongdi/compressorjs@1.2.1-0 "This version has a critical bug"
 ```
 
 ## 📝 合规检查清单
 
 发布前请再次确认：
 
-- [ ] ✅ 包名不会与原包冲突（已使用 scope：`@lookou823/compressorjs`）
+- [ ] ✅ 包名不会与原包冲突（已使用 scope：`@liuyongdi/compressorjs`，且与 npm 账号名匹配）
 - [ ] ✅ LICENSE 文件保留了原作者的完整版权信息
 - [ ] ✅ README.md 明确标注了原项目来源和地址
 - [ ] ✅ README.md 说明了本版本的修改内容
@@ -263,7 +307,7 @@ npm deprecate @lookou823/compressorjs@1.2.1-0 "This version has a critical bug"
 如有问题，请通过以下方式联系：
 
 - GitHub Issues: https://github.com/Lookou823/compressorjs/issues
-- npm 包页面: https://www.npmjs.com/package/@lookou823/compressorjs
+- npm 包页面: https://www.npmjs.com/package/@liuyongdi/compressorjs
 
 ---
 
