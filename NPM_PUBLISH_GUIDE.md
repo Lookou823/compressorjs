@@ -32,17 +32,54 @@ nrm use npm
 
 ### 第二步：登录 npm 账号
 
-```bash
-# 登录 npm（如果还没有账号，请先到 https://www.npmjs.com 注册）
-npm login
+**⚠️ 重要更新**：npm 在 2024 年更新了认证系统，不再支持传统的用户名/密码登录方式。现在需要使用**访问令牌（Access Token）**进行认证。
 
-# 输入你的 npm 用户名、密码和邮箱
-# 如果启用了双因素认证（2FA），还需要输入 OTP 验证码
+#### 方法一：使用访问令牌登录（推荐）
+
+1. **生成访问令牌**：
+   - 访问 https://www.npmjs.com/settings/你的用户名/tokens
+   - 点击 "Generate New Token" → "Generate New Token (classic)"
+   - 选择权限类型：
+     - **Automation**：用于 CI/CD（90 天有效期）
+     - **Publish**：用于发布包（90 天有效期）
+     - **Read-only**：仅读取权限
+   - 复制生成的令牌（只显示一次，请妥善保存）
+
+2. **使用令牌登录**：
+   ```bash
+   # 方式1：使用 npm login 命令（会提示输入令牌）
+   npm login --auth-type=legacy
+   
+   # 方式2：直接配置令牌到 .npmrc 文件
+   echo "//registry.npmjs.org/:_authToken=你的访问令牌" > ~/.npmrc
+   
+   # 方式3：使用环境变量（推荐用于 CI/CD）
+   export NPM_TOKEN=你的访问令牌
+   echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+   ```
+
+3. **验证登录状态**：
+   ```bash
+   npm whoami
+   # 应该显示你的 npm 用户名
+   ```
+
+#### 方法二：使用 npm 网站登录（新方式）
+
+如果 `npm login` 命令报错 `410 Gone`，可以尝试：
+
+```bash
+# 使用新的认证流程
+npm login --web
+
+# 这会打开浏览器，在网页上完成登录
+# 登录成功后，令牌会自动配置到本地
 ```
 
 **重要提示**：
 - 如果使用 scope 包名（如 `@lookou823/compressorjs`），确保你的 npm 账号名与 scope 名称匹配（`lookou823`）
 - 首次发布 scope 包时，需要确保该 scope 属于你的账号
+- 访问令牌有有效期限制（通常 90 天），过期后需要重新生成
 
 ### 第三步：验证 package.json 配置
 
@@ -149,6 +186,36 @@ npm view @lookou823/compressorjs
 **解决方案**：
 - 确认 npm 登录的账号名与 scope 名称匹配
 - 检查是否使用了正确的 npm 账号登录
+
+### 问题2.1：npm login 报错 410 Gone
+
+**错误信息**：`410 Gone - PUT https://registry.npmjs.org/-/user/org.couchdb.user:username - This route is no longer supported`
+
+**原因**：npm 已弃用传统的用户名/密码登录方式
+
+**解决方案**：
+1. **使用访问令牌登录**（推荐）：
+   ```bash
+   # 在 npm 网站生成令牌后
+   npm login --auth-type=legacy
+   # 输入用户名、密码和令牌
+   ```
+
+2. **或使用新的 Web 登录方式**：
+   ```bash
+   npm login --web
+   ```
+
+3. **或直接配置令牌**：
+   ```bash
+   # 编辑 ~/.npmrc 文件
+   echo "//registry.npmjs.org/:_authToken=你的访问令牌" >> ~/.npmrc
+   ```
+
+4. **验证登录**：
+   ```bash
+   npm whoami
+   ```
 
 ### 问题3：发布失败 - 网络问题
 
