@@ -1,2 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Git attributes for compressorjs
+# 确保 dist 目录不被提交
+
+# 如果 dist 被意外添加，自动忽略
+dist/ export-ignore
