@@ -74,7 +74,7 @@ function imageDataURLToImageData(dataURL) {
 /**
  * Main worker message handler
  */
-self.onmessage = async function(e) {
+self.onmessage = async function (e) {
   const {
     imageDataURL,
     naturalWidth,
@@ -89,10 +89,10 @@ self.onmessage = async function(e) {
   try {
     // Calculate dimensions (same logic as main thread)
     const is90DegreesRotated = Math.abs(rotate) % 180 === 90;
-    const resizable = (options.resize === 'contain' || options.resize === 'cover') 
-      && isPositiveNumber(options.width) 
+    const resizable = (options.resize === 'contain' || options.resize === 'cover')
+      && isPositiveNumber(options.width)
       && isPositiveNumber(options.height);
-    
+
     let maxWidth = Math.max(options.maxWidth, 0) || Infinity;
     let maxHeight = Math.max(options.maxHeight, 0) || Infinity;
     let minWidth = Math.max(options.minWidth, 0) || 0;
@@ -115,7 +115,7 @@ self.onmessage = async function(e) {
       width: maxWidth,
       height: maxHeight,
     }, 'contain'));
-    
+
     ({ width: minWidth, height: minHeight } = getAdjustedSizes({
       aspectRatio,
       width: minWidth,
@@ -140,7 +140,7 @@ self.onmessage = async function(e) {
     height = Math.floor(normalizeDecimalNumber(Math.min(Math.max(height, minHeight), maxHeight)));
 
     // Determine mime type
-    let mimeType = options.mimeType;
+    let { mimeType } = options;
     if (!isImageType(mimeType)) {
       mimeType = options.originalMimeType || 'image/jpeg';
     }
@@ -194,7 +194,7 @@ self.onmessage = async function(e) {
         contain: 'cover',
         cover: 'contain',
       }[options.resize]));
-      
+
       srcX = (naturalWidth - srcWidth) / 2;
       srcY = (naturalHeight - srcHeight) / 2;
       params.push(srcX, srcY, srcWidth, srcHeight);
@@ -226,7 +226,6 @@ self.onmessage = async function(e) {
       arrayBuffer,
       mimeType,
     }, [arrayBuffer]);
-
   } catch (error) {
     // Send error back to main thread
     self.postMessage({
@@ -236,4 +235,3 @@ self.onmessage = async function(e) {
     });
   }
 };
-

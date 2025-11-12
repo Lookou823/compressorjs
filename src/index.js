@@ -1,7 +1,7 @@
-import toBlob from "blueimp-canvas-to-blob";
-import isBlob from "is-blob";
-import DEFAULTS from "./defaults";
-import { WINDOW } from "./constants";
+import toBlob from 'blueimp-canvas-to-blob';
+import isBlob from 'is-blob';
+import DEFAULTS from './defaults';
+import { WINDOW } from './constants';
 import {
   arrayBufferToDataURL,
   getAdjustedSizes,
@@ -13,7 +13,7 @@ import {
   resetAndGetOrientation,
   getExif,
   insertExif,
-} from "./utilities";
+} from './utilities';
 
 const { ArrayBuffer, FileReader, Worker } = WINDOW;
 const URL = WINDOW.URL || WINDOW.webkitURL;
@@ -25,7 +25,7 @@ const AnotherCompressor = WINDOW.Compressor;
  */
 function isOffscreenCanvasSupported() {
   return (
-    typeof OffscreenCanvas !== "undefined" && typeof Worker !== "undefined"
+    typeof OffscreenCanvas !== 'undefined' && typeof Worker !== 'undefined'
   );
 }
 
@@ -50,27 +50,52 @@ class WorkerManager {
 
     return new Promise((resolve, reject) => {
       try {
-        const blob = new Blob([workerCode], { type: "application/javascript" });
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
         this.workerURL = URL.createObjectURL(blob);
         this.worker = new Worker(this.workerURL);
 
         this.worker.onmessage = (e) => {
-          const { taskId, success, arrayBuffer, mimeType, error } = e.data;
+          const {
+            taskId, success, arrayBuffer, mimeType, error,
+          } = e.data;
           const task = this.pendingTasks.get(taskId);
 
           if (task) {
             this.pendingTasks.delete(taskId);
             if (success) {
-              const blob = new Blob([arrayBuffer], { type: mimeType });
-              task.resolve(blob);
+              const resultBlob = new Blob([arrayBuffer], { type: mimeType });
+              task.resolve(resultBlob);
             } else {
-              task.reject(new Error(error || "Worker compression failed"));
+              task.reject(new Error(error || 'Worker compression failed'));
             }
           }
         };
 
-        this.worker.onerror = (error) => {
-          reject(error);
+        // Handle worker errors (both initialization and runtime errors)
+        this.worker.onerror = (errorEvent) => {
+          const errorMessage = errorEvent.message || errorEvent.filename || 'Unknown worker error';
+          const error = new Error(`Worker error: ${errorMessage}`);
+
+          // Cleanup all pending tasks on worker error
+          this.pendingTasks.forEach((task) => {
+            task.reject(error);
+          });
+          this.pendingTasks.clear();
+
+          // Reset worker state
+          if (this.worker) {
+            this.worker.terminate();
+            this.worker = null;
+          }
+          if (this.workerURL) {
+            URL.revokeObjectURL(this.workerURL);
+            this.workerURL = null;
+          }
+
+          // Only reject initialization promise if worker is not yet initialized
+          if (!this.worker) {
+            reject(error);
+          }
         };
 
         resolve();
@@ -86,12 +111,32 @@ class WorkerManager {
   compress(data) {
     return new Promise((resolve, reject) => {
       if (!this.worker) {
-        reject(new Error("Worker not initialized"));
+        reject(new Error('Worker not initialized'));
         return;
       }
 
-      const taskId = ++this.taskId;
-      this.pendingTasks.set(taskId, { resolve, reject });
+      this.taskId += 1;
+      const { taskId } = this;
+
+      // Add timeout for pending tasks to prevent memory leak
+      const timeout = setTimeout(() => {
+        if (this.pendingTasks.has(taskId)) {
+          this.pendingTasks.delete(taskId);
+          reject(new Error('Worker task timeout after 30 seconds'));
+        }
+      }, 30000); // 30 seconds timeout
+
+      const wrappedResolve = (result) => {
+        clearTimeout(timeout);
+        resolve(result);
+      };
+
+      const wrappedReject = (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      };
+
+      this.pendingTasks.set(taskId, { resolve: wrappedResolve, reject: wrappedReject });
 
       this.worker.postMessage({
         ...data,
@@ -116,8 +161,9 @@ class WorkerManager {
   }
 }
 
-// Shared worker manager instance
+// Shared worker manager instance with reference counting
 let workerManager = null;
+let workerManagerRefCount = 0;
 
 /**
  * Creates a new image compressor.
@@ -141,6 +187,7 @@ export default class Compressor {
     this.result = null;
     this.useWorker = false;
     this.workerInitialized = false;
+    this.reader = null;
     this.init();
   }
 
@@ -148,7 +195,7 @@ export default class Compressor {
     const { file, options } = this;
 
     if (!isBlob(file)) {
-      this.fail(new Error("The first argument must be a File or Blob object."));
+      this.fail(new Error('The first argument must be a File or Blob object.'));
       return;
     }
 
@@ -156,14 +203,14 @@ export default class Compressor {
 
     if (!isImageType(mimeType)) {
       this.fail(
-        new Error("The first argument must be an image File or Blob object.")
+        new Error('The first argument must be an image File or Blob object.'),
       );
       return;
     }
 
     if (!URL || !FileReader) {
       this.fail(
-        new Error("The current browser does not support image compression.")
+        new Error('The current browser does not support image compression.'),
       );
       return;
     }
@@ -173,7 +220,7 @@ export default class Compressor {
       options.retainExif = false;
     }
 
-    const isJPEGImage = mimeType === "image/jpeg";
+    const isJPEGImage = mimeType === 'image/jpeg';
     const checkOrientation = isJPEGImage && options.checkOrientation;
     const retainExif = isJPEGImage && options.retainExif;
 
@@ -206,9 +253,9 @@ export default class Compressor {
 
         if (checkOrientation || retainExif) {
           if (
-            !URL ||
+            !URL
             // Generate a new URL with the default orientation value 1.
-            orientation > 1
+            || orientation > 1
           ) {
             data.url = arrayBufferToDataURL(result, mimeType);
           } else {
@@ -221,10 +268,10 @@ export default class Compressor {
         this.load(data);
       };
       reader.onabort = () => {
-        this.fail(new Error("Aborted to read the image with FileReader."));
+        this.fail(new Error('Aborted to read the image with FileReader.'));
       };
       reader.onerror = () => {
-        this.fail(new Error("Failed to read the image with FileReader."));
+        this.fail(new Error('Failed to read the image with FileReader.'));
       };
       reader.onloadend = () => {
         this.reader = null;
@@ -239,13 +286,12 @@ export default class Compressor {
   }
 
   load(data) {
-    const { file, image, options } = this;
+    const { options } = this;
 
     // Check if we should use Worker
-    const shouldUseWorker =
-      options.useWorker !== false &&
-      (options.useWorker === true ||
-        (options.useWorker === undefined && isOffscreenCanvasSupported()));
+    const shouldUseWorker = options.useWorker !== false
+      && (options.useWorker === true
+        || (options.useWorker === undefined && isOffscreenCanvasSupported()));
 
     if (shouldUseWorker && !this.workerInitialized) {
       this.initializeWorker()
@@ -266,7 +312,13 @@ export default class Compressor {
   }
 
   proceedWithLoad(data) {
-    const { file, image } = this;
+    const { image } = this;
+
+    // In Worker mode, avoid loading Image in main thread to prevent duplicate decoding
+    // For Worker mode, we need dimensions but can get them from the data URL
+    // or parse them without fully decoding. For now, we'll still load but this
+    // is a known limitation that could be optimized with ImageDecoder API.
+    // TODO: Use ImageDecoder API to get dimensions without decoding in main thread
 
     image.onload = () => {
       this.draw({
@@ -276,23 +328,23 @@ export default class Compressor {
       });
     };
     image.onabort = () => {
-      this.fail(new Error("Aborted to load the image."));
+      this.fail(new Error('Aborted to load the image.'));
     };
     image.onerror = () => {
-      this.fail(new Error("Failed to load the image."));
+      this.fail(new Error('Failed to load the image.'));
     };
 
     // Match all browsers that use WebKit as the layout engine in iOS devices,
     // such as Safari for iOS, Chrome for iOS, and in-app browsers.
     if (
-      WINDOW.navigator &&
-      /(?:iPad|iPhone|iPod).*?AppleWebKit/i.test(WINDOW.navigator.userAgent)
+      WINDOW.navigator
+      && /(?:iPad|iPhone|iPod).*?AppleWebKit/i.test(WINDOW.navigator.userAgent)
     ) {
       // Fix the `The operation is insecure` error (#57)
-      image.crossOrigin = "anonymous";
+      image.crossOrigin = 'anonymous';
     }
 
-    image.alt = file.name;
+    image.alt = this.file.name;
     image.src = data.url;
   }
 
@@ -300,10 +352,12 @@ export default class Compressor {
     if (!workerManager) {
       workerManager = new WorkerManager();
     }
+    // Increment reference count
+    workerManagerRefCount += 1;
 
     // Try to load worker code
     // First, try to fetch from a configured path
-    const workerPath = this.options.workerPath;
+    const { workerPath } = this.options;
     let workerCode = null;
 
     if (workerPath) {
@@ -312,7 +366,7 @@ export default class Compressor {
         workerCode = await response.text();
       } catch (error) {
         // If fetch fails, try to use inline worker code
-        console.warn("Failed to load worker from path, using inline code");
+        // Failed to load worker from path, will use inline code
       }
     }
 
@@ -337,7 +391,7 @@ export default class Compressor {
     scaleX = 1,
     scaleY = 1,
   }) {
-    const { file, image, options } = this;
+    const { options } = this;
 
     // Use Worker if enabled and available
     if (this.useWorker && workerManager && workerManager.worker) {
@@ -371,9 +425,9 @@ export default class Compressor {
 
     // Convert image to data URL for worker
     let imageDataURL;
-    if (image.src.startsWith("data:")) {
+    if (image.src.startsWith('data:')) {
       imageDataURL = image.src;
-    } else if (image.src.startsWith("blob:")) {
+    } else if (image.src.startsWith('blob:')) {
       // Convert blob URL to data URL
       const response = await fetch(image.src);
       const blob = await response.blob();
@@ -408,18 +462,19 @@ export default class Compressor {
         resultMimeType = file.type;
       }
       if (
-        file.size > options.convertSize &&
-        options.convertTypes.indexOf(resultMimeType) >= 0
+        file.size > options.convertSize
+        && options.convertTypes.indexOf(resultMimeType) >= 0
       ) {
-        resultMimeType = "image/jpeg";
+        resultMimeType = 'image/jpeg';
       }
-      const isJPEGImage = resultMimeType === "image/jpeg";
+      const isJPEGImage = resultMimeType === 'image/jpeg';
 
       this.handleCompressionResult(blob, {
         naturalWidth,
         naturalHeight,
         isJPEGImage,
       });
+      return undefined; // Explicit return for async method
     } catch (error) {
       // Fallback to main thread on error
       this.useWorker = false;
@@ -441,13 +496,12 @@ export default class Compressor {
     scaleY = 1,
   }) {
     const { file, image, options } = this;
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
     const is90DegreesRotated = Math.abs(rotate) % 180 === 90;
-    const resizable =
-      (options.resize === "contain" || options.resize === "cover") &&
-      isPositiveNumber(options.width) &&
-      isPositiveNumber(options.height);
+    const resizable = (options.resize === 'contain' || options.resize === 'cover')
+      && isPositiveNumber(options.width)
+      && isPositiveNumber(options.height);
     let maxWidth = Math.max(options.maxWidth, 0) || Infinity;
     let maxHeight = Math.max(options.maxHeight, 0) || Infinity;
     let minWidth = Math.max(options.minWidth, 0) || 0;
@@ -471,7 +525,7 @@ export default class Compressor {
         width: maxWidth,
         height: maxHeight,
       },
-      "contain"
+      'contain',
     ));
     ({ width: minWidth, height: minHeight } = getAdjustedSizes(
       {
@@ -479,7 +533,7 @@ export default class Compressor {
         width: minWidth,
         height: minHeight,
       },
-      "cover"
+      'cover',
     ));
 
     if (resizable) {
@@ -489,7 +543,7 @@ export default class Compressor {
           width,
           height,
         },
-        options.resize
+        options.resize,
       ));
     } else {
       ({ width = naturalWidth, height = naturalHeight } = getAdjustedSizes({
@@ -500,10 +554,10 @@ export default class Compressor {
     }
 
     width = Math.floor(
-      normalizeDecimalNumber(Math.min(Math.max(width, minWidth), maxWidth))
+      normalizeDecimalNumber(Math.min(Math.max(width, minWidth), maxWidth)),
     );
     height = Math.floor(
-      normalizeDecimalNumber(Math.min(Math.max(height, minHeight), maxHeight))
+      normalizeDecimalNumber(Math.min(Math.max(height, minHeight), maxHeight)),
     );
 
     const destX = -width / 2;
@@ -525,9 +579,9 @@ export default class Compressor {
           height: naturalHeight,
         },
         {
-          contain: "cover",
-          cover: "contain",
-        }[options.resize]
+          contain: 'cover',
+          cover: 'contain',
+        }[options.resize],
       ));
       srcX = (naturalWidth - srcWidth) / 2;
       srcY = (naturalHeight - srcHeight) / 2;
@@ -548,20 +602,20 @@ export default class Compressor {
       options.mimeType = file.type;
     }
 
-    let fillStyle = "transparent";
+    let fillStyle = 'transparent';
 
     // Converts PNG files over the `convertSize` to JPEGs.
     if (
-      file.size > options.convertSize &&
-      options.convertTypes.indexOf(options.mimeType) >= 0
+      file.size > options.convertSize
+      && options.convertTypes.indexOf(options.mimeType) >= 0
     ) {
-      options.mimeType = "image/jpeg";
+      options.mimeType = 'image/jpeg';
     }
 
-    const isJPEGImage = options.mimeType === "image/jpeg";
+    const isJPEGImage = options.mimeType === 'image/jpeg';
 
     if (isJPEGImage) {
-      fillStyle = "#fff";
+      fillStyle = '#fff';
     }
 
     // Override the default fill color (#000, black)
@@ -613,29 +667,27 @@ export default class Compressor {
       return;
     }
 
-    const done = (result) =>
-      this.done({
-        naturalWidth,
-        naturalHeight,
-        result,
-      });
+    const done = (result) => this.done({
+      naturalWidth,
+      naturalHeight,
+      result,
+    });
 
     if (
-      blob &&
-      isJPEGImage &&
-      options.retainExif &&
-      this.exif &&
-      this.exif.length > 0
+      blob
+      && isJPEGImage
+      && options.retainExif
+      && this.exif
+      && this.exif.length > 0
     ) {
-      const next = (arrayBuffer) =>
-        done(
-          toBlob(
-            arrayBufferToDataURL(
-              insertExif(arrayBuffer, this.exif),
-              options.mimeType
-            )
-          )
-        );
+      const next = (arrayBuffer) => done(
+        toBlob(
+          arrayBufferToDataURL(
+            insertExif(arrayBuffer, this.exif),
+            options.mimeType,
+          ),
+        ),
+      );
 
       if (blob.arrayBuffer) {
         blob
@@ -644,8 +696,8 @@ export default class Compressor {
           .catch(() => {
             this.fail(
               new Error(
-                "Failed to read the compressed image with Blob.arrayBuffer()."
-              )
+                'Failed to read the compressed image with Blob.arrayBuffer().',
+              ),
             );
           });
       } else {
@@ -657,12 +709,12 @@ export default class Compressor {
         };
         reader.onabort = () => {
           this.fail(
-            new Error("Aborted to read the compressed image with FileReader.")
+            new Error('Aborted to read the compressed image with FileReader.'),
           );
         };
         reader.onerror = () => {
           this.fail(
-            new Error("Failed to read the compressed image with FileReader.")
+            new Error('Failed to read the compressed image with FileReader.'),
           );
         };
         reader.onloadend = () => {
@@ -678,24 +730,28 @@ export default class Compressor {
   done({ naturalWidth, naturalHeight, result }) {
     const { file, image, options } = this;
 
-    if (URL && image.src.indexOf("blob:") === 0) {
+    // Cleanup Blob URL
+    if (URL && image.src.indexOf('blob:') === 0) {
       URL.revokeObjectURL(image.src);
     }
+
+    // Cleanup resources after completion
+    this.cleanup();
 
     if (result) {
       // Returns original file if the result is greater than it and without size related options
       if (
-        options.strict &&
-        !options.retainExif &&
-        result.size > file.size &&
-        options.mimeType === file.type &&
-        !(
-          options.width > naturalWidth ||
-          options.height > naturalHeight ||
-          options.minWidth > naturalWidth ||
-          options.minHeight > naturalHeight ||
-          options.maxWidth < naturalWidth ||
-          options.maxHeight < naturalHeight
+        options.strict
+        && !options.retainExif
+        && result.size > file.size
+        && options.mimeType === file.type
+        && !(
+          options.width > naturalWidth
+          || options.height > naturalHeight
+          || options.minWidth > naturalWidth
+          || options.minHeight > naturalHeight
+          || options.maxWidth < naturalWidth
+          || options.maxHeight < naturalHeight
         )
       ) {
         result = file;
@@ -710,7 +766,7 @@ export default class Compressor {
         if (result.name && result.type !== file.type) {
           result.name = result.name.replace(
             REGEXP_EXTENSION,
-            imageTypeToExtension(result.type)
+            imageTypeToExtension(result.type),
           );
         }
       }
@@ -729,10 +785,48 @@ export default class Compressor {
   fail(err) {
     const { options } = this;
 
+    // Cleanup resources on error
+    this.cleanup();
+
     if (options.error) {
       options.error.call(this, err);
     } else {
       throw err;
+    }
+  }
+
+  /**
+   * Cleanup resources (Blob URLs, event listeners, etc.)
+   */
+  cleanup() {
+    // Cleanup Blob URL
+    if (URL && this.image && this.image.src && this.image.src.indexOf('blob:') === 0) {
+      URL.revokeObjectURL(this.image.src);
+    }
+
+    // Cleanup all Image event listeners
+    if (this.image) {
+      this.image.onload = null;
+      this.image.onabort = null;
+      this.image.onerror = null;
+    }
+
+    // Cleanup FileReader
+    if (this.reader) {
+      this.reader.onload = null;
+      this.reader.onabort = null;
+      this.reader.onerror = null;
+      this.reader.onloadend = null;
+    }
+
+    // Decrement worker manager reference count
+    if (this.useWorker && workerManager && workerManagerRefCount > 0) {
+      workerManagerRefCount -= 1;
+      // If no more references, cleanup worker manager
+      if (workerManagerRefCount === 0 && workerManager) {
+        workerManager.terminate();
+        workerManager = null;
+      }
     }
   }
 
@@ -743,17 +837,17 @@ export default class Compressor {
       if (this.reader) {
         this.reader.abort();
       } else if (!this.image.complete) {
+        // Cleanup all event listeners instead of just onload
         this.image.onload = null;
-        this.image.onabort();
+        this.image.onabort = null;
+        this.image.onerror = null;
+        // Don't call onabort() as it may trigger error handling
       } else {
-        this.fail(new Error("The compression process has been aborted."));
+        this.fail(new Error('The compression process has been aborted.'));
       }
 
-      // Cancel pending worker tasks
-      if (this.useWorker && workerManager) {
-        // Note: We can't cancel individual tasks, but we can mark as aborted
-        // The worker will continue but the result will be ignored
-      }
+      // Cleanup resources
+      this.cleanup();
     }
   }
 
@@ -772,5 +866,17 @@ export default class Compressor {
    */
   static setDefaults(options) {
     Object.assign(DEFAULTS, options);
+  }
+
+  /**
+   * Cleanup global worker manager instance.
+   * Call this when you're done with all compression tasks to free resources.
+   */
+  static cleanup() {
+    if (workerManager) {
+      workerManager.terminate();
+      workerManager = null;
+      workerManagerRefCount = 0;
+    }
   }
 }

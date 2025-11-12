@@ -62,7 +62,7 @@ export default {
    * specified by the `width` and `height` options.
    * @type {string}
    */
-  resize: "none",
+  resize: 'none',
 
   /**
    * The quality of the output image.
@@ -78,14 +78,14 @@ export default {
    * By default, the original mime type of the source image file will be used.
    * @type {string}
    */
-  mimeType: "auto",
+  mimeType: 'auto',
 
   /**
    * Files whose file type is included in this list,
    * and whose file size exceeds the `convertSize` value will be converted to JPEGs.
    * @type {string｜Array}
    */
-  convertTypes: ["image/png"],
+  convertTypes: ['image/png'],
 
   /**
    * PNG files over this size (5 MB by default) will be converted to JPEGs.
