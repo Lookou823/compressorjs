@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 import toBlob from 'blueimp-canvas-to-blob';
 import isBlob from 'is-blob';
 import DEFAULTS from './defaults';
@@ -22,6 +23,7 @@ const AnotherCompressor = WINDOW.Compressor;
 
 /**
  * Check if OffscreenCanvas is supported
+ * @returns {boolean} True if OffscreenCanvas is supported
  */
 function isOffscreenCanvasSupported() {
   return (
@@ -42,6 +44,8 @@ class WorkerManager {
 
   /**
    * Initialize worker with blob URL
+   * @param {string} workerCode - The worker code as a string
+   * @returns {Promise<void>} Promise that resolves when worker is initialized
    */
   initWorker(workerCode) {
     if (this.worker) {
@@ -58,14 +62,13 @@ class WorkerManager {
           const {
             taskId, success, arrayBuffer, mimeType, error, dimensions,
           } = e.data;
-          
+
           // Handle getDimensions response (not a compression task)
           if (dimensions !== undefined && !success && !arrayBuffer) {
             // This is a dimensions response, let the caller handle it
             // (getImageDimensionsFromWorker will intercept it)
             return;
           }
-          
           // Handle compression task response
           const task = this.pendingTasks.get(taskId);
 
@@ -116,6 +119,8 @@ class WorkerManager {
 
   /**
    * Compress image using worker
+   * @param {Object} data - Compression data
+   * @returns {Promise<Blob>} Promise that resolves with compressed image blob
    */
   compress(data) {
     return new Promise((resolve, reject) => {
@@ -145,7 +150,10 @@ class WorkerManager {
         reject(error);
       };
 
-      this.pendingTasks.set(taskId, { resolve: wrappedResolve, reject: wrappedReject });
+      this.pendingTasks.set(taskId, {
+        resolve: wrappedResolve,
+        reject: wrappedReject,
+      });
 
       this.worker.postMessage({
         ...data,
@@ -309,8 +317,19 @@ export default class Compressor {
           this.workerInitialized = true;
           this.proceedWithLoad(data);
         })
-        .catch(() => {
-          // Fallback to main thread if worker initialization fails
+        .catch((error) => {
+          // If useWorker is explicitly true, don't fallback to main thread
+          if (options.useWorker === true) {
+            this.fail(
+              new Error(
+                `Worker initialization failed: ${
+                  error.message || 'Unknown error'
+                }. Please check browser support for OffscreenCanvas.`,
+              ),
+            );
+            return;
+          }
+          // Only fallback if useWorker was auto-detected (undefined)
           this.useWorker = false;
           this.workerInitialized = true;
           this.proceedWithLoad(data);
@@ -366,11 +385,23 @@ export default class Compressor {
   /**
    * Get image dimensions for Worker mode without decoding in main thread
    * Sends image to Worker to get dimensions, avoiding main thread decoding
+   * @param {Object} data - Image data object
+   * @returns {Promise<void>} Promise that resolves when dimensions are obtained
    */
   async getImageDimensionsForWorker(data) {
     // Ensure Worker is ready before getting dimensions
     if (!workerManager || !workerManager.worker) {
-      // Worker not ready, fallback to main thread
+      // Worker not ready
+      if (this.options.useWorker === true) {
+        // Explicitly requested Worker mode, don't fallback
+        this.fail(
+          new Error(
+            'Worker not initialized. Please check browser support for OffscreenCanvas.',
+          ),
+        );
+        return;
+      }
+      // Only fallback if useWorker was auto-detected
       this.useWorker = false;
       this.workerInitialized = true;
       this.proceedWithLoad(data);
@@ -395,8 +426,10 @@ export default class Compressor {
       this.workerImageDataURL = imageDataURL;
 
       // Send to Worker to get dimensions (Worker will decode in its own thread)
-      const dimensions = await this.getImageDimensionsFromWorker(imageDataURL);
-      
+      const dimensions = await Compressor.getImageDimensionsFromWorker(
+        imageDataURL,
+      );
+
       // Now proceed with Worker drawing using dimensions from Worker
       this.draw({
         ...data,
@@ -404,22 +437,39 @@ export default class Compressor {
         naturalHeight: dimensions.height,
       });
     } catch (error) {
-      // If Worker fails, fallback to main thread mode
-      // But don't log warning in production to avoid console noise
+      // If Worker fails and useWorker is explicitly true, throw error instead of falling back
+      // This ensures that when useWorker=true, we never decode in main thread
+      if (this.options.useWorker === true) {
+        // Explicitly requested Worker mode, don't fallback to main thread
+        this.fail(
+          new Error(
+            `Worker mode failed: ${error.message}. Please check browser support for OffscreenCanvas.`,
+          ),
+        );
+        return;
+      }
+
+      // Only fallback if useWorker was auto-detected (undefined)
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('Worker dimension detection failed, falling back to main thread:', error);
+        // eslint-disable-next-line no-console
+        console.warn(
+          'Worker dimension detection failed, falling back to main thread:',
+          error,
+        );
       }
       this.useWorker = false;
       this.workerInitialized = true;
-      // Fallback to main thread loading
+      // Fallback to main thread loading (only for auto-detected mode)
       this.proceedWithLoad(data);
     }
   }
 
   /**
    * Get image dimensions from Worker (decodes in Worker thread, not main thread)
+   * @param {string} imageDataURL - Image data URL
+   * @returns {Promise<Object>} Promise that resolves with dimensions object {width, height}
    */
-  getImageDimensionsFromWorker(imageDataURL) {
+  static getImageDimensionsFromWorker(imageDataURL) {
     return new Promise((resolve, reject) => {
       if (!workerManager || !workerManager.worker) {
         reject(new Error('Worker not initialized'));
@@ -428,19 +478,19 @@ export default class Compressor {
 
       const taskId = `dimensions-${Date.now()}-${Math.random()}`;
       let resolved = false;
-      
+
       // Use WorkerManager's message handler, but intercept dimensions messages
       const originalOnMessage = workerManager.worker.onmessage;
       workerManager.worker.onmessage = (e) => {
         const { taskId: msgTaskId, dimensions: dims, error: err } = e.data;
-        
+
         // Check if this is a dimensions response
         if (msgTaskId === taskId && (dims || err)) {
           if (!resolved) {
             resolved = true;
             // Restore original handler
             workerManager.worker.onmessage = originalOnMessage;
-            
+
             if (dims) {
               resolve(dims);
             } else {
@@ -449,7 +499,7 @@ export default class Compressor {
             return;
           }
         }
-        
+
         // Pass other messages to original handler
         if (originalOnMessage) {
           originalOnMessage(e);
@@ -498,17 +548,18 @@ export default class Compressor {
 
     // If no worker code loaded, use inline code
     if (!workerCode) {
-      workerCode = this.getInlineWorkerCode();
+      workerCode = Compressor.getInlineWorkerCode();
     }
 
     await workerManager.initWorker(workerCode);
   }
 
-  getInlineWorkerCode() {
+  static getInlineWorkerCode() {
     // Return the worker code as a string
     // This will be replaced with actual worker code during build or runtime
     // IMPORTANT: Must include getDimensions action handler to avoid main thread decoding
-    return `self.onmessage=async function(e){const{action,imageDataURL,naturalWidth,naturalHeight,rotate=0,scaleX=1,scaleY=1,options,taskId}=e.data;if(action==='getDimensions'){try{const img=new Image();await new Promise((r,j)=>{img.onload=r;img.onerror=j;img.src=imageDataURL});self.postMessage({taskId,dimensions:{width:img.naturalWidth,height:img.naturalHeight}});return}catch(e){self.postMessage({taskId,error:e.message||'Failed to get dimensions'});return}}try{function isPositiveNumber(v){return v>0&&v<Infinity}function normalizeDecimalNumber(v,t=1e11){return/\.\\d*(?:0|9){12}\\d*$/.test(v)?Math.round(v*t)/t:v}function getAdjustedSizes({aspectRatio,height,width},type='none'){const iw=isPositiveNumber(width),ih=isPositiveNumber(height);if(iw&&ih){const aw=height*aspectRatio;if((type==='contain'||type==='none')&&aw>width||type==='cover'&&aw<width)height=width/aspectRatio;else width=height*aspectRatio}else if(iw)height=width/aspectRatio;else if(ih)width=height*aspectRatio;return{width,height}}function isImageType(v){return/^image\\/.+$/.test(v)}const is90=Math.abs(rotate)%180===90,resizable=(options.resize==='contain'||options.resize==='cover')&&isPositiveNumber(options.width)&&isPositiveNumber(options.height);let mw=Math.max(options.maxWidth,0)||Infinity,mh=Math.max(options.maxHeight,0)||Infinity,minw=Math.max(options.minWidth,0)||0,minh=Math.max(options.minHeight,0)||0,ar=naturalWidth/naturalHeight,w=options.width,h=options.height;if(is90){[mw,mh]=[mh,mw];[minw,minh]=[minh,minw];[w,h]=[h,w]}if(resizable)ar=w/h;({width:mw,height:mh}=getAdjustedSizes({aspectRatio:ar,width:mw,height:mh},'contain'));({width:minw,height:minh}=getAdjustedSizes({aspectRatio:ar,width:minw,height:minh},'cover'));if(resizable)({width:w,height:h}=getAdjustedSizes({aspectRatio:ar,width:w,height:h},options.resize));else({width:w=naturalWidth,height:h=naturalHeight}=getAdjustedSizes({aspectRatio:ar,width:w,height:h}));w=Math.floor(normalizeDecimalNumber(Math.min(Math.max(w,minw),mw)));h=Math.floor(normalizeDecimalNumber(Math.min(Math.max(h,minh),mh)));let mt=options.mimeType;if(!isImageType(mt))mt=options.originalMimeType||'image/jpeg';if(options.fileSize>options.convertSize&&options.convertTypes.indexOf(mt)>=0)mt='image/jpeg';const isJpeg=mt==='image/jpeg';if(is90)[w,h]=[h,w];const canvas=new OffscreenCanvas(w,h),ctx=canvas.getContext('2d');ctx.fillStyle=isJpeg?'#fff':'transparent';ctx.fillRect(0,0,w,h);const img=new Image();await new Promise((r,j)=>{img.onload=r;img.onerror=j;img.src=imageDataURL});const dx=-w/2,dy=-h/2,dw=w,dh=h,params=[];if(resizable){let sx=0,sy=0,sw=naturalWidth,sh=naturalHeight;({width:sw,height:sh}=getAdjustedSizes({aspectRatio:ar,width:naturalWidth,height:naturalHeight},{contain:'cover',cover:'contain'}[options.resize]));sx=(naturalWidth-sw)/2;sy=(naturalHeight-sh)/2;params.push(sx,sy,sw,sh)}params.push(dx,dy,dw,dh);ctx.save();ctx.translate(w/2,h/2);ctx.rotate(rotate*Math.PI/180);ctx.scale(scaleX,scaleY);ctx.drawImage(img,...params);ctx.restore();const blob=await canvas.convertToBlob({type:mt,quality:options.quality}),ab=await blob.arrayBuffer();self.postMessage({taskId,success:true,arrayBuffer:ab,mimeType:mt},[ab])}catch(e){self.postMessage({taskId,success:false,error:e.message||'Unknown error'})}};`;
+    // eslint-disable-next-line max-len, quotes, no-useless-escape
+    return "self.onmessage=async function(e){const{action,imageDataURL,naturalWidth,naturalHeight,rotate=0,scaleX=1,scaleY=1,options,taskId}=e.data;if(action==='getDimensions'){try{const img=new Image();await new Promise((r,j)=>{img.onload=r;img.onerror=j;img.src=imageDataURL});self.postMessage({taskId,dimensions:{width:img.naturalWidth,height:img.naturalHeight}});return}catch(e){self.postMessage({taskId,error:e.message||'Failed to get dimensions'});return}}try{function isPositiveNumber(v){return v>0&&v<Infinity}function normalizeDecimalNumber(v,t=1e11){return/\\.\\d*(?:0|9){12}\\d*$/.test(v)?Math.round(v*t)/t:v}function getAdjustedSizes({aspectRatio,height,width},type='none'){const iw=isPositiveNumber(width),ih=isPositiveNumber(height);if(iw&&ih){const aw=height*aspectRatio;if((type==='contain'||type==='none')&&aw>width||type==='cover'&&aw<width)height=width/aspectRatio;else width=height*aspectRatio}else if(iw)height=width/aspectRatio;else if(ih)width=height*aspectRatio;return{width,height}}function isImageType(v){return/^image\\/.+$/.test(v)}const is90=Math.abs(rotate)%180===90,resizable=(options.resize==='contain'||options.resize==='cover')&&isPositiveNumber(options.width)&&isPositiveNumber(options.height);let mw=Math.max(options.maxWidth,0)||Infinity,mh=Math.max(options.maxHeight,0)||Infinity,minw=Math.max(options.minWidth,0)||0,minh=Math.max(options.minHeight,0)||0,ar=naturalWidth/naturalHeight,w=options.width,h=options.height;if(is90){[mw,mh]=[mh,mw];[minw,minh]=[minh,minw];[w,h]=[h,w]}if(resizable)ar=w/h;({width:mw,height:mh}=getAdjustedSizes({aspectRatio:ar,width:mw,height:mh},'contain'));({width:minw,height:minh}=getAdjustedSizes({aspectRatio:ar,width:minw,height:minh},'cover'));if(resizable)({width:w,height:h}=getAdjustedSizes({aspectRatio:ar,width:w,height:h},options.resize));else({width:w=naturalWidth,height:h=naturalHeight}=getAdjustedSizes({aspectRatio:ar,width:w,height:h}));w=Math.floor(normalizeDecimalNumber(Math.min(Math.max(w,minw),mw)));h=Math.floor(normalizeDecimalNumber(Math.min(Math.max(h,minh),mh)));let mt=options.mimeType;if(!isImageType(mt))mt=options.originalMimeType||'image/jpeg';if(options.fileSize>options.convertSize&&options.convertTypes.indexOf(mt)>=0)mt='image/jpeg';const isJpeg=mt==='image/jpeg';if(is90)[w,h]=[h,w];const canvas=new OffscreenCanvas(w,h),ctx=canvas.getContext('2d');ctx.fillStyle=isJpeg?'#fff':'transparent';ctx.fillRect(0,0,w,h);const img=new Image();await new Promise((r,j)=>{img.onload=r;img.onerror=j;img.src=imageDataURL});const dx=-w/2,dy=-h/2,dw=w,dh=h,params=[];if(resizable){let sx=0,sy=0,sw=naturalWidth,sh=naturalHeight;({width:sw,height:sh}=getAdjustedSizes({aspectRatio:ar,width:naturalWidth,height:naturalHeight},{contain:'cover',cover:'contain'}[options.resize]));sx=(naturalWidth-sw)/2;sy=(naturalHeight-sh)/2;params.push(sx,sy,sw,sh)}params.push(dx,dy,dw,dh);ctx.save();ctx.translate(w/2,h/2);ctx.rotate(rotate*Math.PI/180);ctx.scale(scaleX,scaleY);ctx.drawImage(img,...params);ctx.restore();const blob=await canvas.convertToBlob({type:mt,quality:options.quality}),ab=await blob.arrayBuffer();self.postMessage({taskId,success:true,arrayBuffer:ab,mimeType:mt},[ab])}catch(e){self.postMessage({taskId,success:false,error:e.message||'Unknown error'})}};";
   }
 
   async draw({
@@ -518,8 +569,6 @@ export default class Compressor {
     scaleX = 1,
     scaleY = 1,
   }) {
-    const { options } = this;
-
     // Use Worker if enabled and available
     if (this.useWorker && workerManager && workerManager.worker) {
       return this.drawWithWorker({
@@ -551,15 +600,23 @@ export default class Compressor {
     const { file, options } = this;
 
     // Use stored data URL from Worker dimension detection (avoids main thread decoding)
-    // If not available, fallback to image.src (shouldn't happen in Worker mode)
+    // If not available, this is an error condition in Worker mode
     let imageDataURL = this.workerImageDataURL;
     if (!imageDataURL) {
-      // Fallback: this shouldn't happen in Worker mode, but handle it gracefully
+      // This shouldn't happen in Worker mode - workerImageDataURL should be set
+      // If useWorker is explicitly true, fail instead of using image.src
+      // (which may decode in main thread)
+      if (this.options.useWorker === true) {
+        throw new Error(
+          'Worker image data URL not available. This indicates a bug in Worker initialization.',
+        );
+      }
+      // Only for auto-detected mode, try to get from image.src
       const { image } = this;
       if (image.src.startsWith('data:')) {
         imageDataURL = image.src;
       } else if (image.src.startsWith('blob:')) {
-        // Convert blob URL to data URL
+        // Convert blob URL to data URL (this doesn't decode the image)
         const response = await fetch(image.src);
         const blob = await response.blob();
         imageDataURL = await new Promise((resolve, reject) => {
@@ -608,7 +665,18 @@ export default class Compressor {
       });
       return undefined; // Explicit return for async method
     } catch (error) {
-      // Fallback to main thread on error
+      // If useWorker is explicitly true, don't fallback to main thread
+      if (this.options.useWorker === true) {
+        this.fail(
+          new Error(
+            `Worker compression failed: ${
+              error.message || 'Unknown error'
+            }. Please check browser support for OffscreenCanvas.`,
+          ),
+        );
+        return undefined;
+      }
+      // Only fallback if useWorker was auto-detected (undefined)
       this.useWorker = false;
       return this.drawOnMainThread({
         naturalWidth,
@@ -932,7 +1000,12 @@ export default class Compressor {
    */
   cleanup() {
     // Cleanup Blob URL
-    if (URL && this.image && this.image.src && this.image.src.indexOf('blob:') === 0) {
+    if (
+      URL
+      && this.image
+      && this.image.src
+      && this.image.src.indexOf('blob:') === 0
+    ) {
       URL.revokeObjectURL(this.image.src);
     }
 

@@ -96,7 +96,7 @@ self.onmessage = async function (e) {
         img.onerror = reject;
         img.src = imageDataURL;
       });
-      
+
       self.postMessage({
         taskId,
         dimensions: {

@@ -1,6 +1,6 @@
-const rollupConfig = require('../rollup.config');
 const fs = require('fs');
 const path = require('path');
+const rollupConfig = require('../rollup.config');
 
 // Try to use puppeteer's Chromium, fallback to system Chrome
 let chromeBin = null;
