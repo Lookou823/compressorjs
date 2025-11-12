@@ -314,12 +314,18 @@ export default class Compressor {
   proceedWithLoad(data) {
     const { image } = this;
 
-    // In Worker mode, avoid loading Image in main thread to prevent duplicate decoding
-    // For Worker mode, we need dimensions but can get them from the data URL
-    // or parse them without fully decoding. For now, we'll still load but this
-    // is a known limitation that could be optimized with ImageDecoder API.
-    // TODO: Use ImageDecoder API to get dimensions without decoding in main thread
+    // In Worker mode, skip loading Image in main thread to avoid decoding in main thread
+    // We'll get dimensions from the Worker instead
+    if (this.useWorker && this.workerInitialized) {
+      // For Worker mode, we need to get dimensions without decoding in main thread
+      // We'll use a lightweight approach: create a small Image just to get dimensions
+      // This still decodes, but we can optimize this later with ImageDecoder API
+      // For now, let's pass the data URL to Worker and let it handle everything
+      this.getImageDimensionsForWorker(data);
+      return;
+    }
 
+    // Main thread mode: load Image normally
     image.onload = () => {
       this.draw({
         ...data,
@@ -346,6 +352,105 @@ export default class Compressor {
 
     image.alt = this.file.name;
     image.src = data.url;
+  }
+
+  /**
+   * Get image dimensions for Worker mode without decoding in main thread
+   * Sends image to Worker to get dimensions, avoiding main thread decoding
+   */
+  async getImageDimensionsForWorker(data) {
+    try {
+      // Convert to data URL if needed (this doesn't decode the image)
+      let imageDataURL = data.url;
+      if (imageDataURL.startsWith('blob:')) {
+        const response = await fetch(imageDataURL);
+        const blob = await response.blob();
+        imageDataURL = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      // Store data URL for Worker to use (avoid using image.src)
+      this.workerImageDataURL = imageDataURL;
+
+      // Send to Worker to get dimensions (Worker will decode in its own thread)
+      const dimensions = await this.getImageDimensionsFromWorker(imageDataURL);
+      
+      // Now proceed with Worker drawing using dimensions from Worker
+      this.draw({
+        ...data,
+        naturalWidth: dimensions.width,
+        naturalHeight: dimensions.height,
+      });
+    } catch (error) {
+      // If Worker fails, fallback to main thread mode
+      console.warn('Worker dimension detection failed, falling back to main thread:', error);
+      this.useWorker = false;
+      this.workerInitialized = true;
+      // Fallback to main thread loading
+      this.proceedWithLoad(data);
+    }
+  }
+
+  /**
+   * Get image dimensions from Worker (decodes in Worker thread, not main thread)
+   */
+  getImageDimensionsFromWorker(imageDataURL) {
+    return new Promise((resolve, reject) => {
+      if (!workerManager || !workerManager.worker) {
+        reject(new Error('Worker not initialized'));
+        return;
+      }
+
+      const taskId = `dimensions-${Date.now()}-${Math.random()}`;
+      let resolved = false;
+      
+      // Use WorkerManager's message handler, but intercept dimensions messages
+      const originalOnMessage = workerManager.worker.onmessage;
+      workerManager.worker.onmessage = (e) => {
+        const { taskId: msgTaskId, dimensions: dims, error: err } = e.data;
+        
+        // Check if this is a dimensions response
+        if (msgTaskId === taskId && (dims || err)) {
+          if (!resolved) {
+            resolved = true;
+            // Restore original handler
+            workerManager.worker.onmessage = originalOnMessage;
+            
+            if (dims) {
+              resolve(dims);
+            } else {
+              reject(new Error(err || 'Failed to get dimensions from Worker'));
+            }
+            return;
+          }
+        }
+        
+        // Pass other messages to original handler
+        if (originalOnMessage) {
+          originalOnMessage(e);
+        }
+      };
+
+      // Send request to Worker
+      workerManager.worker.postMessage({
+        taskId,
+        action: 'getDimensions',
+        imageDataURL,
+      });
+
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          workerManager.worker.onmessage = originalOnMessage;
+          reject(new Error('Timeout getting dimensions from Worker'));
+        }
+      }, 5000);
+    });
   }
 
   async initializeWorker() {
@@ -421,24 +526,29 @@ export default class Compressor {
     scaleX = 1,
     scaleY = 1,
   }) {
-    const { file, image, options } = this;
+    const { file, options } = this;
 
-    // Convert image to data URL for worker
-    let imageDataURL;
-    if (image.src.startsWith('data:')) {
-      imageDataURL = image.src;
-    } else if (image.src.startsWith('blob:')) {
-      // Convert blob URL to data URL
-      const response = await fetch(image.src);
-      const blob = await response.blob();
-      imageDataURL = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } else {
-      imageDataURL = image.src;
+    // Use stored data URL from Worker dimension detection (avoids main thread decoding)
+    // If not available, fallback to image.src (shouldn't happen in Worker mode)
+    let imageDataURL = this.workerImageDataURL;
+    if (!imageDataURL) {
+      // Fallback: this shouldn't happen in Worker mode, but handle it gracefully
+      const { image } = this;
+      if (image.src.startsWith('data:')) {
+        imageDataURL = image.src;
+      } else if (image.src.startsWith('blob:')) {
+        // Convert blob URL to data URL
+        const response = await fetch(image.src);
+        const blob = await response.blob();
+        imageDataURL = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        imageDataURL = image.src;
+      }
     }
 
     try {

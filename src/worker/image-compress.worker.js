@@ -76,6 +76,7 @@ function imageDataURLToImageData(dataURL) {
  */
 self.onmessage = async function (e) {
   const {
+    action,
     imageDataURL,
     naturalWidth,
     naturalHeight,
@@ -86,6 +87,34 @@ self.onmessage = async function (e) {
     taskId,
   } = e.data;
 
+  // Handle getDimensions action (to avoid decoding in main thread)
+  if (action === 'getDimensions') {
+    try {
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imageDataURL;
+      });
+      
+      self.postMessage({
+        taskId,
+        dimensions: {
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        },
+      });
+      return;
+    } catch (error) {
+      self.postMessage({
+        taskId,
+        error: error.message || 'Failed to get dimensions',
+      });
+      return;
+    }
+  }
+
+  // Normal compression flow
   try {
     // Calculate dimensions (same logic as main thread)
     const is90DegreesRotated = Math.abs(rotate) % 180 === 90;

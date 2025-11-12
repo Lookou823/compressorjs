@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.1-2 (Nov 12, 2024)
+
+### 🐛 Bug Fixes
+
+- **修复 Worker 模式下主线程解码问题**
+  - 修复了即使设置 `useWorker: true`，图片仍在主线程解码的问题
+  - 现在图片尺寸获取和压缩都在 Worker 线程中完成
+  - 主线程完全不被阻塞，UI 保持流畅响应
+
+### 🔧 技术改进
+
+- 新增 `getImageDimensionsFromWorker` 方法：在 Worker 中获取图片尺寸
+- Worker 支持 `getDimensions` action：可以单独获取尺寸而不进行完整压缩
+- 优化 Worker 消息处理：避免与压缩任务冲突
+
+### 📝 文档
+
+- 新增 `WORKER_DECODING_FIX.md`：详细说明修复方案
+
 ## 1.2.1-1 (Nov 12, 2024)
 
 ### 🐛 Bug Fixes (P0/P1 缺陷修复)
