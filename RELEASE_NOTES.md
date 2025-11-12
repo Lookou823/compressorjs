@@ -1,3 +1,31 @@
+# 发布说明 - v1.2.1-3
+
+**发布日期**: 2024年11月12日  
+**版本**: 1.2.1-3
+
+## 🎯 本次发布重点
+
+### 🔥 关键修复：内联 Worker 代码缺少 getDimensions 处理
+
+**问题**: 内联 Worker 代码（默认使用的 Worker）缺少 `getDimensions` action 处理，导致 Worker 模式下仍在主线程解码。
+
+**根本原因**: 
+- 内联 Worker 代码没有包含 `getDimensions` action 的处理逻辑
+- 当调用 `getImageDimensionsFromWorker` 时，Worker 收到消息但没有处理
+- 导致失败并降级到主线程，在主线程解码图片
+
+**修复**: 
+- ✅ 更新内联 Worker 代码，添加 `action` 参数和 `getDimensions` 处理
+- ✅ 改进 WorkerManager 消息处理，识别 `dimensions` 响应
+- ✅ 增强错误处理，确保 Worker 就绪后再调用
+
+**验证方法**: 
+1. 使用 Chrome DevTools Performance 面板
+2. 主线程（Main）中**不应有** Image decode 任务
+3. Worker 线程中**应有** decode 和 canvas 操作
+
+---
+
 # 发布说明 - v1.2.1-2
 
 **发布日期**: 2024年11月12日  

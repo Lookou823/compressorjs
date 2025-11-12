@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.1-3 (Nov 12, 2024)
+
+### 🐛 关键修复
+
+- **修复内联 Worker 代码缺少 getDimensions 处理**
+  - 修复了内联 Worker 代码（默认使用的 Worker）缺少 `getDimensions` action 处理的问题
+  - 这是导致 Worker 模式下仍在主线程解码的根本原因
+  - 现在内联 Worker 代码完整支持 `getDimensions` action，图片真正在 Worker 线程中解码
+
+### 🔧 技术改进
+
+- 更新 `getInlineWorkerCode()` 方法：添加 `action` 参数和 `getDimensions` 处理逻辑
+- 改进 WorkerManager 消息处理：识别 `dimensions` 响应，避免与压缩任务冲突
+- 增强错误处理：在调用前检查 Worker 是否就绪
+
+### 📝 文档
+
+- 新增 `WORKER_DECODING_FIX_V2.md`：详细说明根本原因和修复方案
+
 ## 1.2.1-2 (Nov 12, 2024)
 
 ### 🐛 Bug Fixes
