@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.2.1-1 (Nov 12, 2024)
+
+### 🐛 Bug Fixes (P0/P1 缺陷修复)
+
+#### 内存泄漏修复
+- **P0-1**: 修复全局 WorkerManager 单例永不释放导致的内存泄漏
+  - 添加引用计数机制，自动管理 Worker 生命周期
+  - 新增 `Compressor.cleanup()` 静态方法用于手动清理
+- **P0-2**: 修复 Image 事件监听器未完全清理
+  - 在 `abort()` 中清理所有事件监听器（onload, onabort, onerror）
+  - 新增 `cleanup()` 实例方法统一处理资源清理
+- **P1-2**: 修复 Blob URL 清理不完整
+  - 在所有代码路径（done、fail、abort）中统一清理 Blob URL
+
+#### Worker 相关修复
+- **P1-3**: 修复 pendingTasks Map 可能累积未完成的任务
+  - 为每个任务添加 30 秒超时机制，防止内存泄漏
+- **P2-2**: 完善 Worker 错误处理
+  - 错误时清理所有 pending tasks
+  - 改进错误信息，区分初始化错误和运行时错误
+
+### ✨ 新增功能
+
+- 新增 `cleanup()` 实例方法：统一清理 Compressor 实例的资源
+- 新增 `Compressor.cleanup()` 静态方法：清理全局 WorkerManager 实例
+- 自动引用计数机制：当所有 Compressor 实例销毁时自动清理 Worker
+
+### 📝 改进
+
+- 改进资源管理：统一的资源清理机制，防止内存泄漏
+- 改进错误处理：更详细的错误信息和更完善的错误恢复机制
+- 代码质量：修复所有关键 lint 错误，提升代码质量
+
+### 📚 文档
+
+- 新增 `PERFORMANCE_AUDIT_REPORT.md`：完整的性能审计报告
+- 新增 `FIXES_APPLIED.md`：详细的修复说明文档
+- 新增性能测试套件：Jest + Puppeteer 测试用例
+
+## 1.2.1-0 (Previous version with Worker support)
+
+- 初始 Worker 支持版本
+
 ## 1.2.1 (Feb 28, 2023)
 
 - Fix incompatible syntax in the bundled files (#170).
