@@ -4,7 +4,7 @@
   
   // 保存时自动修复 ESLint 错误
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
+    "source.fixAll.eslint": "explicit"
   },
   
   // JavaScript/TypeScript 文件使用 ESLint 格式化

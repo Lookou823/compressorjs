@@ -12,9 +12,9 @@
     "types"
   ],
   "scripts": {
-    "build": "rollup -c",
+    "build": "cross-env NODE_ENV=production rollup -c",
     "clean": "del-cli dist",
-    "compress": "uglifyjs dist/compressor.js -o dist/compressor.min.js -c -m --comments /^!/",
+    "compress": "echo 'Compression handled by rollup-plugin-terser'",
     "dev": "rollup -c -m -w",
     "lint": "npm run lint:js && npm run lint:css",
     "lint:css": "stylelint docs/**/*.css --fix",
@@ -62,6 +62,7 @@
     "@rollup/plugin-commonjs": "^21.1.0",
     "@rollup/plugin-node-resolve": "^13.3.0",
     "@rollup/plugin-replace": "^3.1.0",
+    "@rollup/plugin-terser": "^0.4.4",
     "babel-plugin-istanbul": "^6.1.1",
     "chai": "^4.5.0",
     "change-case": "^4.1.2",
@@ -86,7 +87,6 @@
     "rollup": "^2.79.2",
     "stylelint": "^15.11.0",
     "stylelint-config-standard": "^30.0.1",
-    "stylelint-order": "^6.0.4",
-    "uglify-js": "^3.19.3"
+    "stylelint-order": "^6.0.4"
   }
 }
