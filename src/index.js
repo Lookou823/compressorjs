@@ -60,15 +60,9 @@ class WorkerManager {
 
         this.worker.onmessage = (e) => {
           const {
-            taskId, success, arrayBuffer, mimeType, error, dimensions,
+            taskId, success, arrayBuffer, mimeType, error, naturalWidth, naturalHeight,
           } = e.data;
 
-          // Handle getDimensions response (not a compression task)
-          if (dimensions !== undefined && !success && !arrayBuffer) {
-            // This is a dimensions response, let the caller handle it
-            // (getImageDimensionsFromWorker will intercept it)
-            return;
-          }
           // Handle compression task response
           const task = this.pendingTasks.get(taskId);
 
@@ -76,7 +70,12 @@ class WorkerManager {
             this.pendingTasks.delete(taskId);
             if (success) {
               const resultBlob = new Blob([arrayBuffer], { type: mimeType });
-              task.resolve(resultBlob);
+              // Return both blob and dimensions for handleCompressionResult
+              task.resolve({
+                blob: resultBlob,
+                naturalWidth,
+                naturalHeight,
+              });
             } else {
               task.reject(new Error(error || 'Worker compression failed'));
             }
@@ -105,9 +104,7 @@ class WorkerManager {
           }
 
           // Only reject initialization promise if worker is not yet initialized
-          if (!this.worker) {
-            reject(error);
-          }
+          if (!this.worker) reject(error);
         };
 
         resolve();
@@ -155,10 +152,23 @@ class WorkerManager {
         reject: wrappedReject,
       });
 
+      // Prepare transfer list for Blob (transfer ArrayBuffer for performance)
+      const transferList = [];
+      if (data.imageData instanceof ArrayBuffer) {
+        transferList.push(data.imageData);
+      } else if (data.imageData instanceof Blob) {
+        // Blob can be transferred, but we need to convert to ArrayBuffer first
+        // For now, pass Blob directly (browser will handle serialization)
+        // Alternatively, we could convert to ArrayBuffer here
+      } else if (data.imageData && data.imageData.data && data.imageData.data.buffer) {
+        // Legacy: ImageData transfer
+        transferList.push(data.imageData.data.buffer);
+      }
+
       this.worker.postMessage({
         ...data,
         taskId,
-      });
+      }, transferList.length > 0 ? transferList : undefined);
     });
   }
 
@@ -342,14 +352,11 @@ export default class Compressor {
   proceedWithLoad(data) {
     const { image } = this;
 
-    // In Worker mode, skip loading Image in main thread to avoid decoding in main thread
-    // We'll get dimensions from the Worker instead
+    // In Worker mode, send raw data to Worker for decoding
+    // Image decoding will happen in Worker thread, avoiding main thread blocking
     if (this.useWorker && this.workerInitialized) {
-      // For Worker mode, we need to get dimensions without decoding in main thread
-      // We'll use a lightweight approach: create a small Image just to get dimensions
-      // This still decodes, but we can optimize this later with ImageDecoder API
-      // For now, let's pass the data URL to Worker and let it handle everything
-      this.getImageDimensionsForWorker(data);
+      // Send raw image data to Worker, Worker will decode and process
+      this.prepareDataForWorker(data);
       return;
     }
 
@@ -383,17 +390,16 @@ export default class Compressor {
   }
 
   /**
-   * Get image dimensions for Worker mode without decoding in main thread
-   * Sends image to Worker to get dimensions, avoiding main thread decoding
+   * Prepare image data for Worker mode - send raw data to Worker for decoding
+   * Image decoding will happen in Worker thread, avoiding main thread blocking
+   * IMPORTANT: Never use Image.onload or fetch(data URL) in main thread to avoid decoding
    * @param {Object} data - Image data object
-   * @returns {Promise<void>} Promise that resolves when dimensions are obtained
+   * @returns {Promise<void>} Promise that resolves when data is prepared
    */
-  async getImageDimensionsForWorker(data) {
-    // Ensure Worker is ready before getting dimensions
+  async prepareDataForWorker(data) {
+    // Ensure Worker is ready
     if (!workerManager || !workerManager.worker) {
-      // Worker not ready
       if (this.options.useWorker === true) {
-        // Explicitly requested Worker mode, don't fallback
         this.fail(
           new Error(
             'Worker not initialized. Please check browser support for OffscreenCanvas.',
@@ -401,7 +407,6 @@ export default class Compressor {
         );
         return;
       }
-      // Only fallback if useWorker was auto-detected
       this.useWorker = false;
       this.workerInitialized = true;
       this.proceedWithLoad(data);
@@ -409,38 +414,68 @@ export default class Compressor {
     }
 
     try {
-      // Convert to data URL if needed (this doesn't decode the image)
-      let imageDataURL = data.url;
-      if (imageDataURL.startsWith('blob:')) {
-        const response = await fetch(imageDataURL);
-        const blob = await response.blob();
-        imageDataURL = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
+      // In Worker mode, we must avoid ANY image decoding in main thread
+      // This includes: Image.onload, fetch(data URL), or any operation that triggers decoding
+
+      // Strategy: Use the original File/Blob directly if available
+      // If we have a FileReader result (data URL), convert it to ArrayBuffer without decoding
+      let imageDataForWorker = null;
+      const imageMimeType = this.file.type;
+
+      // Priority 1: Use original File/Blob (no decoding needed)
+      if (this.file instanceof File || this.file instanceof Blob) {
+        imageDataForWorker = this.file;
+      } else if (data.url) {
+        // Priority 2: If we have a blob URL, fetch it (this doesn't decode the image)
+        if (data.url.startsWith('blob:')) {
+          const response = await fetch(data.url);
+          imageDataForWorker = await response.blob();
+        } else if (data.url.startsWith('data:')) {
+          // Priority 3: Convert data URL to binary without triggering image decoding
+          const commaIndex = data.url.indexOf(',');
+          if (commaIndex === -1) {
+            throw new Error('Invalid data URL');
+          }
+          const metadata = data.url.substring(0, commaIndex);
+          const payload = data.url.substring(commaIndex + 1);
+          if (metadata.includes(';base64')) {
+            const binaryString = atob(payload);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i += 1) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            imageDataForWorker = bytes.buffer;
+          } else {
+            // Percent-encoded payload (e.g. SVG). Convert to ArrayBuffer via TextEncoder.
+            const decoded = decodeURIComponent(payload);
+            const encoder = new TextEncoder();
+            imageDataForWorker = encoder.encode(decoded).buffer;
+          }
+        } else {
+          // For other URLs, pass as-is (Worker will handle it)
+          imageDataForWorker = data.url;
+        }
       }
 
-      // Store data URL for Worker to use (avoid using image.src)
-      this.workerImageDataURL = imageDataURL;
+      if (!imageDataForWorker) {
+        throw new Error('No image data available for Worker');
+      }
 
-      // Send to Worker to get dimensions (Worker will decode in its own thread)
-      const dimensions = await Compressor.getImageDimensionsFromWorker(
-        imageDataURL,
-      );
+      // Store raw data for Worker (Worker will decode it)
+      // NEVER set this.image.src in Worker mode to avoid main thread decoding
+      this.workerImageData = imageDataForWorker;
+      this.workerImageMimeType = imageMimeType;
 
-      // Now proceed with Worker drawing using dimensions from Worker
+      // Send raw data to Worker and let it decode and process
+      // Worker will return dimensions after decoding
       this.draw({
         ...data,
-        naturalWidth: dimensions.width,
-        naturalHeight: dimensions.height,
+        // Dimensions will be obtained from Worker after decoding
+        naturalWidth: 0,
+        naturalHeight: 0,
       });
     } catch (error) {
-      // If Worker fails and useWorker is explicitly true, throw error instead of falling back
-      // This ensures that when useWorker=true, we never decode in main thread
       if (this.options.useWorker === true) {
-        // Explicitly requested Worker mode, don't fallback to main thread
         this.fail(
           new Error(
             `Worker mode failed: ${error.message}. Please check browser support for OffscreenCanvas.`,
@@ -449,79 +484,17 @@ export default class Compressor {
         return;
       }
 
-      // Only fallback if useWorker was auto-detected (undefined)
       if (process.env.NODE_ENV !== 'production') {
         // eslint-disable-next-line no-console
         console.warn(
-          'Worker dimension detection failed, falling back to main thread:',
+          'Worker data preparation failed, falling back to main thread:',
           error,
         );
       }
       this.useWorker = false;
       this.workerInitialized = true;
-      // Fallback to main thread loading (only for auto-detected mode)
       this.proceedWithLoad(data);
     }
-  }
-
-  /**
-   * Get image dimensions from Worker (decodes in Worker thread, not main thread)
-   * @param {string} imageDataURL - Image data URL
-   * @returns {Promise<Object>} Promise that resolves with dimensions object {width, height}
-   */
-  static getImageDimensionsFromWorker(imageDataURL) {
-    return new Promise((resolve, reject) => {
-      if (!workerManager || !workerManager.worker) {
-        reject(new Error('Worker not initialized'));
-        return;
-      }
-
-      const taskId = `dimensions-${Date.now()}-${Math.random()}`;
-      let resolved = false;
-
-      // Use WorkerManager's message handler, but intercept dimensions messages
-      const originalOnMessage = workerManager.worker.onmessage;
-      workerManager.worker.onmessage = (e) => {
-        const { taskId: msgTaskId, dimensions: dims, error: err } = e.data;
-
-        // Check if this is a dimensions response
-        if (msgTaskId === taskId && (dims || err)) {
-          if (!resolved) {
-            resolved = true;
-            // Restore original handler
-            workerManager.worker.onmessage = originalOnMessage;
-
-            if (dims) {
-              resolve(dims);
-            } else {
-              reject(new Error(err || 'Failed to get dimensions from Worker'));
-            }
-            return;
-          }
-        }
-
-        // Pass other messages to original handler
-        if (originalOnMessage) {
-          originalOnMessage(e);
-        }
-      };
-
-      // Send request to Worker
-      workerManager.worker.postMessage({
-        taskId,
-        action: 'getDimensions',
-        imageDataURL,
-      });
-
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          workerManager.worker.onmessage = originalOnMessage;
-          reject(new Error('Timeout getting dimensions from Worker'));
-        }
-      }, 5000);
-    });
   }
 
   async initializeWorker() {
@@ -555,11 +528,11 @@ export default class Compressor {
   }
 
   static getInlineWorkerCode() {
-    // Return the worker code as a string
-    // This will be replaced with actual worker code during build or runtime
-    // IMPORTANT: Must include getDimensions action handler to avoid main thread decoding
+    // Return the worker code as a string - matches src/worker/image-compress.worker.js
+    // Worker decodes image in background thread, avoiding main thread blocking
+    // Uses createImageBitmap (priority 1), ImageDecoder API (priority 2), or Image (fallback)
     // eslint-disable-next-line max-len, quotes, no-useless-escape
-    return "self.onmessage=async function(e){const{action,imageDataURL,naturalWidth,naturalHeight,rotate=0,scaleX=1,scaleY=1,options,taskId}=e.data;if(action==='getDimensions'){try{const img=new Image();await new Promise((r,j)=>{img.onload=r;img.onerror=j;img.src=imageDataURL});self.postMessage({taskId,dimensions:{width:img.naturalWidth,height:img.naturalHeight}});return}catch(e){self.postMessage({taskId,error:e.message||'Failed to get dimensions'});return}}try{function isPositiveNumber(v){return v>0&&v<Infinity}function normalizeDecimalNumber(v,t=1e11){return/\\.\\d*(?:0|9){12}\\d*$/.test(v)?Math.round(v*t)/t:v}function getAdjustedSizes({aspectRatio,height,width},type='none'){const iw=isPositiveNumber(width),ih=isPositiveNumber(height);if(iw&&ih){const aw=height*aspectRatio;if((type==='contain'||type==='none')&&aw>width||type==='cover'&&aw<width)height=width/aspectRatio;else width=height*aspectRatio}else if(iw)height=width/aspectRatio;else if(ih)width=height*aspectRatio;return{width,height}}function isImageType(v){return/^image\\/.+$/.test(v)}const is90=Math.abs(rotate)%180===90,resizable=(options.resize==='contain'||options.resize==='cover')&&isPositiveNumber(options.width)&&isPositiveNumber(options.height);let mw=Math.max(options.maxWidth,0)||Infinity,mh=Math.max(options.maxHeight,0)||Infinity,minw=Math.max(options.minWidth,0)||0,minh=Math.max(options.minHeight,0)||0,ar=naturalWidth/naturalHeight,w=options.width,h=options.height;if(is90){[mw,mh]=[mh,mw];[minw,minh]=[minh,minw];[w,h]=[h,w]}if(resizable)ar=w/h;({width:mw,height:mh}=getAdjustedSizes({aspectRatio:ar,width:mw,height:mh},'contain'));({width:minw,height:minh}=getAdjustedSizes({aspectRatio:ar,width:minw,height:minh},'cover'));if(resizable)({width:w,height:h}=getAdjustedSizes({aspectRatio:ar,width:w,height:h},options.resize));else({width:w=naturalWidth,height:h=naturalHeight}=getAdjustedSizes({aspectRatio:ar,width:w,height:h}));w=Math.floor(normalizeDecimalNumber(Math.min(Math.max(w,minw),mw)));h=Math.floor(normalizeDecimalNumber(Math.min(Math.max(h,minh),mh)));let mt=options.mimeType;if(!isImageType(mt))mt=options.originalMimeType||'image/jpeg';if(options.fileSize>options.convertSize&&options.convertTypes.indexOf(mt)>=0)mt='image/jpeg';const isJpeg=mt==='image/jpeg';if(is90)[w,h]=[h,w];const canvas=new OffscreenCanvas(w,h),ctx=canvas.getContext('2d');ctx.fillStyle=isJpeg?'#fff':'transparent';ctx.fillRect(0,0,w,h);const img=new Image();await new Promise((r,j)=>{img.onload=r;img.onerror=j;img.src=imageDataURL});const dx=-w/2,dy=-h/2,dw=w,dh=h,params=[];if(resizable){let sx=0,sy=0,sw=naturalWidth,sh=naturalHeight;({width:sw,height:sh}=getAdjustedSizes({aspectRatio:ar,width:naturalWidth,height:naturalHeight},{contain:'cover',cover:'contain'}[options.resize]));sx=(naturalWidth-sw)/2;sy=(naturalHeight-sh)/2;params.push(sx,sy,sw,sh)}params.push(dx,dy,dw,dh);ctx.save();ctx.translate(w/2,h/2);ctx.rotate(rotate*Math.PI/180);ctx.scale(scaleX,scaleY);ctx.drawImage(img,...params);ctx.restore();const blob=await canvas.convertToBlob({type:mt,quality:options.quality}),ab=await blob.arrayBuffer();self.postMessage({taskId,success:true,arrayBuffer:ab,mimeType:mt},[ab])}catch(e){self.postMessage({taskId,success:false,error:e.message||'Unknown error'})}};";
+    return "function isPositiveNumber(value) {return value > 0 && value < Infinity;} function normalizeDecimalNumber(value, times = 100000000000) {const REGEXP_DECIMALS = /\\.\\d*(?:0|9){12}\\d*$/; return REGEXP_DECIMALS.test(value) ? (Math.round(value * times) / times) : value;} function getAdjustedSizes({aspectRatio, height, width}, type = 'none') {const isValidWidth = isPositiveNumber(width); const isValidHeight = isPositiveNumber(height); if (isValidWidth && isValidHeight) {const adjustedWidth = height * aspectRatio; if (((type === 'contain' || type === 'none') && adjustedWidth > width) || (type === 'cover' && adjustedWidth < width)) {height = width / aspectRatio;} else {width = height * aspectRatio;}} else if (isValidWidth) {height = width / aspectRatio;} else if (isValidHeight) {width = height * aspectRatio;} return {width, height};} function isImageType(value) {const REGEXP_IMAGE_TYPE = /^image\\/.+$/; return REGEXP_IMAGE_TYPE.test(value);} async function decodeImageInWorker(imageData, mimeType) {if (typeof createImageBitmap !== 'undefined') {let blob = imageData; if (typeof imageData === 'string' && imageData.startsWith('data:')) {const response = await fetch(imageData); blob = await response.blob();} else if (typeof imageData === 'string' && imageData.startsWith('blob:')) {const response = await fetch(imageData); blob = await response.blob();} const imageBitmap = await createImageBitmap(blob); return {imageBitmap, width: imageBitmap.width, height: imageBitmap.height,};} if (typeof ImageDecoder !== 'undefined') {let arrayBuffer; if (imageData instanceof Blob) {arrayBuffer = await imageData.arrayBuffer();} else if (typeof imageData === 'string' && imageData.startsWith('data:')) {const response = await fetch(imageData); arrayBuffer = await (await response.blob()).arrayBuffer();} else {throw new Error('Unsupported image data format for ImageDecoder');} const decoder = new ImageDecoder({data: arrayBuffer, type: mimeType || 'image/jpeg',}); const {image} = await decoder.decode(); const imageBitmap = await createImageBitmap(image); return {imageBitmap, width: image.displayWidth, height: image.displayHeight,};} const img = new Image(); await new Promise((resolve, reject) => {img.onload = resolve; img.onerror = reject; if (imageData instanceof Blob) {img.src = URL.createObjectURL(imageData);} else {img.src = imageData;}}); if (typeof createImageBitmap !== 'undefined') {const imageBitmap = await createImageBitmap(img); if (img.src.startsWith('blob:')) {URL.revokeObjectURL(img.src);} return {imageBitmap, width: img.naturalWidth, height: img.naturalHeight,};} return {imageBitmap: img, width: img.naturalWidth, height: img.naturalHeight,};} self.onmessage = async function (e) {const {imageData, imageMimeType, rotate = 0, scaleX = 1, scaleY = 1, options, taskId,} = e.data; try {const {imageBitmap, width: naturalWidth, height: naturalHeight} = await decodeImageInWorker( imageData, imageMimeType, ); const is90DegreesRotated = Math.abs(rotate) % 180 === 90; const resizable = (options.resize === 'contain' || options.resize === 'cover') && isPositiveNumber(options.width) && isPositiveNumber(options.height); let maxWidth = Math.max(options.maxWidth, 0) || Infinity; let maxHeight = Math.max(options.maxHeight, 0) || Infinity; let minWidth = Math.max(options.minWidth, 0) || 0; let minHeight = Math.max(options.minHeight, 0) || 0; let aspectRatio = naturalWidth / naturalHeight; let {width, height} = options; if (is90DegreesRotated) {[maxWidth, maxHeight] = [maxHeight, maxWidth]; [minWidth, minHeight] = [minHeight, minWidth]; [width, height] = [height, width];} if (resizable) {aspectRatio = width / height;} ({width: maxWidth, height: maxHeight} = getAdjustedSizes({aspectRatio, width: maxWidth, height: maxHeight,}, 'contain')); ({width: minWidth, height: minHeight} = getAdjustedSizes({aspectRatio, width: minWidth, height: minHeight,}, 'cover')); if (resizable) {({width, height} = getAdjustedSizes({aspectRatio, width, height,}, options.resize));} else {({width = naturalWidth, height = naturalHeight} = getAdjustedSizes({aspectRatio, width, height,}));} width = Math.floor(normalizeDecimalNumber(Math.min(Math.max(width, minWidth), maxWidth))); height = Math.floor(normalizeDecimalNumber(Math.min(Math.max(height, minHeight), maxHeight))); let {mimeType} = options; if (!isImageType(mimeType)) {mimeType = options.originalMimeType || 'image/jpeg';} if (options.fileSize > options.convertSize && options.convertTypes.indexOf(mimeType) >= 0) {mimeType = 'image/jpeg';} const isJPEGImage = mimeType === 'image/jpeg'; if (is90DegreesRotated) {[width, height] = [height, width];} const canvas = new OffscreenCanvas(width, height); const context = canvas.getContext('2d'); const fillStyle = isJPEGImage ? '#fff' : 'transparent'; context.fillStyle = fillStyle; context.fillRect(0, 0, width, height); const destX = -width / 2; const destY = -height / 2; const destWidth = width; const destHeight = height; const params = []; if (resizable) {let srcX = 0; let srcY = 0; let srcWidth = naturalWidth; let srcHeight = naturalHeight; ({width: srcWidth, height: srcHeight} = getAdjustedSizes({aspectRatio, width: naturalWidth, height: naturalHeight,}, {contain: 'cover', cover: 'contain',}[options.resize])); srcX = (naturalWidth - srcWidth) / 2; srcY = (naturalHeight - srcHeight) / 2; params.push(srcX, srcY, srcWidth, srcHeight);} params.push(destX, destY, destWidth, destHeight); context.save(); context.translate(width / 2, height / 2); context.rotate((rotate * Math.PI) / 180); context.scale(scaleX, scaleY); if (imageBitmap instanceof ImageBitmap) {context.drawImage(imageBitmap, ...params);} else {context.drawImage(imageBitmap, ...params); if (imageBitmap.src && imageBitmap.src.startsWith('blob:')) {URL.revokeObjectURL(imageBitmap.src);}} context.restore(); const blob = await canvas.convertToBlob({type: mimeType, quality: options.quality,}); const arrayBuffer = await blob.arrayBuffer(); self.postMessage({taskId, success: true, arrayBuffer, mimeType, naturalWidth, naturalHeight,}, [arrayBuffer]);} catch (error) {self.postMessage({taskId, success: false, error: error.message || 'Unknown error occurred in worker',});}};";
   }
 
   async draw({
@@ -599,51 +572,54 @@ export default class Compressor {
   }) {
     const { file, options } = this;
 
-    // Use stored data URL from Worker dimension detection (avoids main thread decoding)
-    // If not available, this is an error condition in Worker mode
-    let imageDataURL = this.workerImageDataURL;
-    if (!imageDataURL) {
-      // This shouldn't happen in Worker mode - workerImageDataURL should be set
-      // If useWorker is explicitly true, fail instead of using image.src
-      // (which may decode in main thread)
+    // Use stored raw image data (Blob or data URL) for Worker to decode
+    // Worker will decode the image and process it, all in background thread
+    const imageData = this.workerImageData;
+    const imageMimeType = this.workerImageMimeType || file.type;
+
+    if (!imageData) {
+      // This shouldn't happen in Worker mode - workerImageData should be set
       if (this.options.useWorker === true) {
         throw new Error(
-          'Worker image data URL not available. This indicates a bug in Worker initialization.',
+          'Worker image data not available. This indicates a bug in Worker initialization.',
         );
       }
-      // Only for auto-detected mode, try to get from image.src
-      const { image } = this;
-      if (image.src.startsWith('data:')) {
-        imageDataURL = image.src;
-      } else if (image.src.startsWith('blob:')) {
-        // Convert blob URL to data URL (this doesn't decode the image)
-        const response = await fetch(image.src);
-        const blob = await response.blob();
-        imageDataURL = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } else {
-        imageDataURL = image.src;
-      }
-    }
-
-    try {
-      const blob = await workerManager.compress({
-        imageDataURL,
+      // Only for auto-detected mode, fallback to main thread
+      this.useWorker = false;
+      return this.drawOnMainThread({
         naturalWidth,
         naturalHeight,
         rotate,
         scaleX,
         scaleY,
+      });
+    }
+
+    try {
+      // Send raw image data to Worker
+      // Worker will decode the image, extract dimensions, and compress
+      // IMPORTANT: Filter out functions from options (they cannot be cloned by postMessage)
+      const {
+        success, error, beforeDraw, drew, ...serializableOptions
+      } = options;
+
+      const result = await workerManager.compress({
+        imageData, // Blob or data URL - Worker will decode it
+        imageMimeType,
+        rotate,
+        scaleX,
+        scaleY,
         options: {
-          ...options,
+          ...serializableOptions,
           originalMimeType: file.type,
           fileSize: file.size,
         },
       });
+
+      // Extract blob and dimensions from Worker result
+      const blob = result.blob || result; // Support both new format and legacy
+      const workerNaturalWidth = result.naturalWidth || naturalWidth;
+      const workerNaturalHeight = result.naturalHeight || naturalHeight;
 
       // Determine if result is JPEG
       let resultMimeType = options.mimeType;
@@ -659,8 +635,8 @@ export default class Compressor {
       const isJPEGImage = resultMimeType === 'image/jpeg';
 
       this.handleCompressionResult(blob, {
-        naturalWidth,
-        naturalHeight,
+        naturalWidth: workerNaturalWidth,
+        naturalHeight: workerNaturalHeight,
         isJPEGImage,
       });
       return undefined; // Explicit return for async method
@@ -853,10 +829,22 @@ export default class Compressor {
       });
     };
 
+    // Ensure quality is applied correctly
+    // Quality only works for JPEG and WebP, for other formats it's ignored
+    const quality = (isJPEGImage || options.mimeType === 'image/webp')
+      ? options.quality
+      : undefined;
+
     if (canvas.toBlob) {
-      canvas.toBlob(callback, options.mimeType, options.quality);
+      // toBlob signature: toBlob(callback, mimeType, quality)
+      canvas.toBlob(callback, options.mimeType, quality);
     } else {
-      callback(toBlob(canvas.toDataURL(options.mimeType, options.quality)));
+      // toDataURL signature: toDataURL(mimeType, quality)
+      // quality is only used for JPEG and WebP
+      const dataURL = quality !== undefined
+        ? canvas.toDataURL(options.mimeType, quality)
+        : canvas.toDataURL(options.mimeType);
+      callback(toBlob(dataURL));
     }
   }
 
@@ -867,11 +855,7 @@ export default class Compressor {
       return;
     }
 
-    const done = (result) => this.done({
-      naturalWidth,
-      naturalHeight,
-      result,
-    });
+    const done = (result) => this.done({ naturalWidth, naturalHeight, result });
 
     if (
       blob
@@ -880,14 +864,16 @@ export default class Compressor {
       && this.exif
       && this.exif.length > 0
     ) {
-      const next = (arrayBuffer) => done(
-        toBlob(
-          arrayBufferToDataURL(
-            insertExif(arrayBuffer, this.exif),
-            options.mimeType,
+      const next = (arrayBuffer) => {
+        done(
+          toBlob(
+            arrayBufferToDataURL(
+              insertExif(arrayBuffer, this.exif),
+              options.mimeType,
+            ),
           ),
-        ),
-      );
+        );
+      };
 
       if (blob.arrayBuffer) {
         blob

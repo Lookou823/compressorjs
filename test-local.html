@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compressor.js 本地测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .section {
+      border: 1px solid #ddd;
+      padding: 15px;
+      border-radius: 5px;
+    }
+    .section h3 {
+      margin-top: 0;
+    }
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .option-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .option-item label {
+      min-width: 150px;
+    }
+    .option-item input[type="number"],
+    .option-item input[type="text"],
+    .option-item select {
+      flex: 1;
+      padding: 5px;
+    }
+    .log {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    .log-item {
+      margin: 5px 0;
+      padding: 5px;
+      border-left: 3px solid #ccc;
+      padding-left: 10px;
+    }
+    .log-item.error {
+      border-color: #f00;
+      background: #ffe6e6;
+    }
+    .log-item.success {
+      border-color: #0f0;
+      background: #e6ffe6;
+    }
+    .log-item.info {
+      border-color: #00f;
+      background: #e6f3ff;
+    }
+    .preview {
+      max-width: 100%;
+      max-height: 300px;
+      margin: 10px 0;
+    }
+    button {
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+    }
+    .status.worker-enabled {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.worker-disabled {
+      background: #f8d7da;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <h1>Compressor.js 本地测试页面</h1>
+  
+  <div class="container">
+    <div class="section">
+      <h3>配置选项</h3>
+      <div class="options">
+        <div class="option-item">
+          <label>useWorker:</label>
+          <select id="useWorker">
+            <option value="true">true (强制启用)</option>
+            <option value="auto" selected>auto (自动检测)</option>
+            <option value="false">false (禁用)</option>
+          </select>
+        </div>
+        <div class="option-item">
+          <label>quality:</label>
+          <input type="number" id="quality" value="0.8" min="0" max="1" step="0.1">
+        </div>
+        <div class="option-item">
+          <label>maxWidth:</label>
+          <input type="number" id="maxWidth" placeholder="Infinity">
+        </div>
+        <div class="option-item">
+          <label>maxHeight:</label>
+          <input type="number" id="maxHeight" placeholder="Infinity">
+        </div>
+        <div class="option-item">
+          <label>mimeType:</label>
+          <input type="text" id="mimeType" placeholder="auto">
+        </div>
+        <div class="option-item">
+          <label>workerPath:</label>
+          <input type="text" id="workerPath" placeholder="使用内联 Worker">
+        </div>
+      </div>
+      
+      <div style="margin-top: 20px;">
+        <input type="file" id="fileInput" accept="image/*">
+        <button id="compressBtn" onclick="compressImage()">压缩图片</button>
+      </div>
+      
+      <div id="status" class="status" style="display: none;"></div>
+    </div>
+    
+    <div class="section">
+      <h3>运行日志</h3>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+  
+  <div class="container" style="margin-top: 20px;">
+    <div class="section">
+      <h3>原始图片</h3>
+      <div id="originalInfo"></div>
+      <img id="originalPreview" class="preview" style="display: none;">
+    </div>
+    
+    <div class="section">
+      <h3>压缩后图片</h3>
+      <div id="compressedInfo"></div>
+      <img id="compressedPreview" class="preview" style="display: none;">
+    </div>
+  </div>
+
+  <script src="dist/compressor.js"></script>
+  <script>
+    let logContainer = document.getElementById('log');
+    
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const logItem = document.createElement('div');
+      logItem.className = `log-item ${type}`;
+      logItem.textContent = `[${timestamp}] ${message}`;
+      logContainer.appendChild(logItem);
+      logContainer.scrollTop = logContainer.scrollHeight;
+      console.log(`[${type.toUpperCase()}]`, message);
+    }
+    
+    function clearLog() {
+      logContainer.innerHTML = '';
+    }
+    
+    function updateStatus(message, isWorker) {
+      const statusEl = document.getElementById('status');
+      statusEl.style.display = 'block';
+      statusEl.textContent = message;
+      statusEl.className = `status ${isWorker ? 'worker-enabled' : 'worker-disabled'}`;
+    }
+    
+    // 检查浏览器支持
+    function checkBrowserSupport() {
+      const hasOffscreenCanvas = typeof OffscreenCanvas !== 'undefined';
+      const hasWorker = typeof Worker !== 'undefined';
+      
+      log(`浏览器支持检查:`, 'info');
+      log(`  - OffscreenCanvas: ${hasOffscreenCanvas ? '✅' : '❌'}`, hasOffscreenCanvas ? 'success' : 'error');
+      log(`  - Worker: ${hasWorker ? '✅' : '❌'}`, hasWorker ? 'success' : 'error');
+      
+      return hasOffscreenCanvas && hasWorker;
+    }
+    
+    function compressImage() {
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
+      
+      if (!file) {
+        log('请先选择图片文件', 'error');
+        return;
+      }
+      
+      clearLog();
+      log('开始压缩图片...', 'info');
+      log(`文件: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, 'info');
+      
+      // 显示原始图片
+      const originalPreview = document.getElementById('originalPreview');
+      const originalInfo = document.getElementById('originalInfo');
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        originalPreview.src = e.target.result;
+        originalPreview.style.display = 'block';
+        originalInfo.innerHTML = `
+          <p>名称: ${file.name}</p>
+          <p>大小: ${(file.size / 1024).toFixed(2)} KB</p>
+          <p>类型: ${file.type}</p>
+        `;
+      };
+      reader.readAsDataURL(file);
+      
+      // 获取配置
+      const useWorkerSelect = document.getElementById('useWorker');
+      const useWorkerValue = useWorkerSelect.value;
+      const useWorker = useWorkerValue === 'true' ? true : (useWorkerValue === 'false' ? false : undefined);
+      
+      const options = {
+        useWorker: useWorker,
+        quality: parseFloat(document.getElementById('quality').value) || 0.8,
+        maxWidth: document.getElementById('maxWidth').value ? parseInt(document.getElementById('maxWidth').value) : undefined,
+        maxHeight: document.getElementById('maxHeight').value ? parseInt(document.getElementById('maxHeight').value) : undefined,
+        mimeType: document.getElementById('mimeType').value || undefined,
+        workerPath: document.getElementById('workerPath').value || undefined,
+        success: (result) => {
+          log('✅ 压缩成功!', 'success');
+          log(`压缩后大小: ${(result.size / 1024).toFixed(2)} KB`, 'success');
+          log(`压缩率: ${((1 - result.size / file.size) * 100).toFixed(2)}%`, 'success');
+          
+          // 显示压缩后图片
+          const compressedPreview = document.getElementById('compressedPreview');
+          const compressedInfo = document.getElementById('compressedInfo');
+          const compressedReader = new FileReader();
+          compressedReader.onload = (e) => {
+            compressedPreview.src = e.target.result;
+            compressedPreview.style.display = 'block';
+            compressedInfo.innerHTML = `
+              <p>名称: ${result.name}</p>
+              <p>大小: ${(result.size / 1024).toFixed(2)} KB</p>
+              <p>类型: ${result.type}</p>
+            `;
+          };
+          compressedReader.readAsDataURL(result);
+          
+          updateStatus('压缩成功', true);
+        },
+        error: (err) => {
+          log(`❌ 压缩失败: ${err.message}`, 'error');
+          log(`错误堆栈: ${err.stack || 'N/A'}`, 'error');
+          updateStatus(`压缩失败: ${err.message}`, false);
+        },
+      };
+      
+      log(`配置选项:`, 'info');
+      log(`  - useWorker: ${JSON.stringify(useWorker)}`, 'info');
+      log(`  - quality: ${options.quality}`, 'info');
+      log(`  - maxWidth: ${options.maxWidth || 'Infinity'}`, 'info');
+      log(`  - maxHeight: ${options.maxHeight || 'Infinity'}`, 'info');
+      log(`  - mimeType: ${options.mimeType || 'auto'}`, 'info');
+      log(`  - workerPath: ${options.workerPath || '内联 Worker'}`, 'info');
+      
+      // 检查浏览器支持
+      const supported = checkBrowserSupport();
+      if (useWorker === true && !supported) {
+        log('⚠️ 浏览器不支持 Worker，但 useWorker=true，将失败', 'error');
+      }
+      
+      try {
+        const compressor = new Compressor(file, options);
+        
+        // 监听内部状态（通过检查实例属性）
+        setTimeout(() => {
+          if (compressor.useWorker) {
+            log('✅ Worker 已启用', 'success');
+            updateStatus('Worker 模式已启用', true);
+          } else {
+            log('ℹ️ 使用主线程模式', 'info');
+            updateStatus('主线程模式', false);
+          }
+        }, 100);
+        
+      } catch (err) {
+        log(`❌ 创建 Compressor 实例失败: ${err.message}`, 'error');
+        log(`错误堆栈: ${err.stack || 'N/A'}`, 'error');
+        updateStatus(`创建失败: ${err.message}`, false);
+      }
+    }
+    
+    // 页面加载时检查浏览器支持
+    window.addEventListener('load', () => {
+      checkBrowserSupport();
+      log('页面加载完成，可以开始测试', 'info');
+    });
+  </script>
+</body>
+</html>
+

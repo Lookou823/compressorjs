@@ -1,5 +1,90 @@
 # Changelog
 
+## 1.2.5 (Dec 2024)
+
+### 🐛 Bug 修复
+
+- **修复 Worker 模式下 postMessage 无法克隆函数对象的问题**
+  - 过滤掉 options 中的回调函数（success、error、beforeDraw、drew），只传递可序列化的选项
+  - 解决了 `Failed to execute 'postMessage' on 'Worker': function could not be cloned` 错误
+
+- **修复主线程模式 quality 参数未正确应用的问题**
+  - 确保 quality 参数只在 JPEG 和 WebP 格式时传递
+  - 修复了主线程模式下图片压缩质量不生效的问题
+
+- **修复 ImageDecoder API 使用错误**
+  - 修复了 Worker 中使用 ImageDecoder 时重复调用 createImageBitmap 的问题
+  - 正确处理 ImageDecoder 返回的 ImageBitmap 对象
+
+- **修复 data URL 转换兼容性问题**
+  - 改进 data URL 到 ArrayBuffer 的转换逻辑，支持更多格式
+  - 优化 Worker 数据传输，使用可转移对象提升性能
+
+### 🚀 性能优化
+
+- **优化 Worker 数据传输**
+  - 使用 ArrayBuffer 作为可转移对象，避免数据复制
+  - 减少主线程和 Worker 之间的数据传输开销
+
+### 📝 代码质量
+
+- **修复所有 ESLint 缩进错误**
+  - 统一代码缩进格式，符合项目规范
+
+## 1.2.4 (Nov 12, 2024)
+
+### 🐛 Bug 修复
+
+- **修复 process.env.NODE_ENV 在浏览器中未定义的问题**
+  - 修复了 `ReferenceError: process is not defined` 错误
+  - 在 Rollup 配置中添加了 `process.env.NODE_ENV` 的替换
+  - 确保浏览器环境中不会出现 process 相关错误
+
+### 🔧 调试改进
+
+- **添加详细的 Worker 初始化日志**
+  - 添加 Worker 检查日志，显示浏览器支持情况和配置选项
+  - 添加 Worker 初始化过程日志，便于排查问题
+  - 添加 Worker 错误详情日志，包含完整的错误信息
+  - 添加降级到主线程模式的日志提示
+
+### 📝 技术改进
+
+- 改进 Worker 错误处理逻辑，确保错误能被正确捕获和报告
+- 优化日志输出，使用统一的日志前缀 `[Compressor]` 和 `[WorkerManager]`
+
+## 1.2.3 (Nov 12, 2024)
+
+### 🔧 代码质量改进
+
+- **修复所有格式化错误**
+  - 统一使用单引号（符合 ESLint 配置）
+  - 修复所有尾随逗号问题
+  - 修复操作符位置（`&&` 和 `||` 放在行首）
+  - 修复对象解构和赋值的换行问题
+  - 代码完全符合项目 ESLint 规范
+
+### 📝 技术改进
+
+- 运行 ESLint 自动修复，确保代码风格一致性
+- 所有格式化问题已解决，构建通过
+
+## 1.2.2 (Nov 12, 2024)
+
+### 🔧 代码质量改进
+
+- **修复所有格式化错误**
+  - 统一使用单引号（符合 ESLint 配置）
+  - 修复所有尾随逗号问题
+  - 修复操作符位置（`&&` 和 `||` 放在行首）
+  - 修复对象解构和赋值的换行问题
+  - 代码完全符合项目 ESLint 规范
+
+### 📝 技术改进
+
+- 运行 ESLint 自动修复，确保代码风格一致性
+- 所有格式化问题已解决，构建通过
+
 ## 1.2.1-5 (Nov 12, 2024)
 
 ### 🔧 代码质量改进

@@ -60,6 +60,7 @@ module.exports = {
       delimiters: ['', ''],
       exclude: ['node_modules/**'],
       preventAssignment: true,
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
       '(function (module) {': `(function (module) {
   if (typeof window === 'undefined') {
     return;

@@ -54,32 +54,120 @@ function isImageType(value) {
 }
 
 /**
- * Convert image data URL to ImageData
+ * Decode image in Worker using the best available API
+ * @param {Blob|string} imageData - Image data (Blob, data URL, or URL)
+ * @param {string} mimeType - Image MIME type
+ * @returns {Promise<{imageBitmap: ImageBitmap, width: number, height: number}>}
  */
-function imageDataURLToImageData(dataURL) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = new OffscreenCanvas(img.width, img.height);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, img.width, img.height);
-      resolve(imageData);
+async function decodeImageInWorker(imageData, mimeType) {
+  // Priority 1: Use createImageBitmap (most modern, works with Blob/ArrayBuffer)
+  if (typeof createImageBitmap !== 'undefined') {
+    let blob = imageData;
+    
+    // Handle different input types
+    if (imageData instanceof Blob || imageData instanceof File) {
+      // Already a Blob/File, use directly
+      blob = imageData;
+    } else if (imageData instanceof ArrayBuffer) {
+      // ArrayBuffer from main thread (converted from data URL without decoding)
+      blob = new Blob([imageData], { type: mimeType || 'image/jpeg' });
+    } else if (typeof imageData === 'string' && imageData.startsWith('blob:')) {
+      // Blob URL - fetch it (this doesn't decode, just gets the blob)
+      const response = await fetch(imageData);
+      blob = await response.blob();
+    } else if (typeof imageData === 'string' && imageData.startsWith('data:')) {
+      // Data URL - convert to Blob without triggering main thread decoding
+      // This should rarely happen as we convert data URL to ArrayBuffer in main thread
+      const response = await fetch(imageData);
+      blob = await response.blob();
+    } else {
+      // Fallback: assume it's a URL string
+      const response = await fetch(imageData);
+      blob = await response.blob();
+    }
+    
+    const imageBitmap = await createImageBitmap(blob);
+    return {
+      imageBitmap,
+      width: imageBitmap.width,
+      height: imageBitmap.height,
     };
+  }
+
+  // Priority 2: Use ImageDecoder API (Chrome 94+)
+  if (typeof ImageDecoder !== 'undefined') {
+    let arrayBuffer;
+
+    if (imageData instanceof Blob || imageData instanceof File) {
+      arrayBuffer = await imageData.arrayBuffer();
+    } else if (imageData instanceof ArrayBuffer) {
+      arrayBuffer = imageData;
+    } else if (typeof imageData === 'string') {
+      const response = await fetch(imageData);
+      arrayBuffer = await (await response.blob()).arrayBuffer();
+    } else {
+      throw new Error('Unsupported image data format for ImageDecoder');
+    }
+
+    const decoder = new ImageDecoder({
+      data: arrayBuffer,
+      type: mimeType || 'image/jpeg',
+    });
+    const { image } = await decoder.decode();
+
+    return {
+      imageBitmap: image,
+      width: typeof image.displayWidth === 'number' ? image.displayWidth : image.width,
+      height: typeof image.displayHeight === 'number' ? image.displayHeight : image.height,
+    };
+  }
+
+  // Priority 3: Fallback to Image + OffscreenCanvas (traditional method)
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
     img.onerror = reject;
-    img.src = dataURL;
+
+    if (imageData instanceof Blob || imageData instanceof File) {
+      img.src = URL.createObjectURL(imageData);
+    } else if (imageData instanceof ArrayBuffer) {
+      const blob = new Blob([imageData], { type: mimeType || 'image/jpeg' });
+      img.src = URL.createObjectURL(blob);
+    } else {
+      img.src = imageData;
+    }
   });
+
+  // Create ImageBitmap from Image for consistency
+  if (typeof createImageBitmap !== 'undefined') {
+    const imageBitmap = await createImageBitmap(img);
+    if (img.src.startsWith('blob:')) {
+      URL.revokeObjectURL(img.src);
+    }
+    return {
+      imageBitmap,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+    };
+  }
+
+  // Last resort: return Image dimensions (will use Image directly in drawImage)
+  return {
+    imageBitmap: img,
+    width: img.naturalWidth,
+    height: img.naturalHeight,
+  };
 }
 
 /**
  * Main worker message handler
+ * @param {MessageEvent} e - Message event from main thread
  */
+// eslint-disable-next-line no-restricted-globals
 self.onmessage = async function (e) {
   const {
-    action,
-    imageDataURL,
-    naturalWidth,
-    naturalHeight,
+    imageData, // Blob, data URL, or URL - Worker will decode it
+    imageMimeType,
     rotate = 0,
     scaleX = 1,
     scaleY = 1,
@@ -87,35 +175,13 @@ self.onmessage = async function (e) {
     taskId,
   } = e.data;
 
-  // Handle getDimensions action (to avoid decoding in main thread)
-  if (action === 'getDimensions') {
-    try {
-      const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = imageDataURL;
-      });
-
-      self.postMessage({
-        taskId,
-        dimensions: {
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-        },
-      });
-      return;
-    } catch (error) {
-      self.postMessage({
-        taskId,
-        error: error.message || 'Failed to get dimensions',
-      });
-      return;
-    }
-  }
-
-  // Normal compression flow
+  // Worker decodes image in background thread, avoiding main thread blocking
   try {
+    // Decode image in Worker thread
+    const { imageBitmap, width: naturalWidth, height: naturalHeight } = await decodeImageInWorker(
+      imageData,
+      imageMimeType,
+    );
     // Calculate dimensions (same logic as main thread)
     const is90DegreesRotated = Math.abs(rotate) % 180 === 90;
     const resizable = (options.resize === 'contain' || options.resize === 'cover')
@@ -194,13 +260,8 @@ self.onmessage = async function (e) {
     context.fillStyle = fillStyle;
     context.fillRect(0, 0, width, height);
 
-    // Load and draw image
-    const img = new Image();
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-      img.src = imageDataURL;
-    });
+    // imageBitmap is already decoded in Worker thread
+    // Use it directly for drawing
 
     // Calculate draw parameters
     const destX = -width / 2;
@@ -232,11 +293,23 @@ self.onmessage = async function (e) {
     params.push(destX, destY, destWidth, destHeight);
 
     // Apply transformations and draw
+    // Image decoding and all Canvas operations happen in Worker thread
     context.save();
     context.translate(width / 2, height / 2);
     context.rotate((rotate * Math.PI) / 180);
     context.scale(scaleX, scaleY);
-    context.drawImage(img, ...params);
+
+    // Draw decoded imageBitmap directly
+    if (imageBitmap instanceof ImageBitmap) {
+      context.drawImage(imageBitmap, ...params);
+    } else {
+      // Fallback for Image object
+      context.drawImage(imageBitmap, ...params);
+      if (imageBitmap.src && imageBitmap.src.startsWith('blob:')) {
+        URL.revokeObjectURL(imageBitmap.src);
+      }
+    }
+
     context.restore();
 
     // Convert to blob
@@ -248,15 +321,19 @@ self.onmessage = async function (e) {
     // Convert blob to ArrayBuffer for transfer
     const arrayBuffer = await blob.arrayBuffer();
 
-    // Send result back to main thread
+    // Send result back to main thread (include dimensions for handleCompressionResult)
+    // eslint-disable-next-line no-restricted-globals
     self.postMessage({
       taskId,
       success: true,
       arrayBuffer,
       mimeType,
+      naturalWidth,
+      naturalHeight,
     }, [arrayBuffer]);
   } catch (error) {
     // Send error back to main thread
+    // eslint-disable-next-line no-restricted-globals
     self.postMessage({
       taskId,
       success: false,

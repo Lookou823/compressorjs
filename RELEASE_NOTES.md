@@ -1,3 +1,148 @@
+# 发布说明 - v1.2.5
+
+**发布日期**: 2024年12月  
+**版本**: 1.2.5
+
+## 🎯 本次发布重点
+
+### 🐛 关键 Bug 修复
+
+**问题 1**: Worker 模式下出现 `Failed to execute 'postMessage' on 'Worker': function could not be cloned` 错误
+
+**修复**: 
+- ✅ 过滤掉 options 中的回调函数（success、error、beforeDraw、drew），只传递可序列化的选项
+- ✅ 解决了 postMessage 无法克隆函数对象的问题
+- ✅ Worker 模式现在可以正常工作
+
+**问题 2**: 主线程模式下 quality 参数未正确应用，图片压缩质量不生效
+
+**修复**:
+- ✅ 确保 quality 参数只在 JPEG 和 WebP 格式时传递
+- ✅ 修复了主线程模式下图片压缩质量不生效的问题
+- ✅ 现在主线程模式也能正确应用压缩质量
+
+**问题 3**: ImageDecoder API 使用错误导致 Worker 解码失败
+
+**修复**:
+- ✅ 修复了 Worker 中使用 ImageDecoder 时重复调用 createImageBitmap 的问题
+- ✅ 正确处理 ImageDecoder 返回的 ImageBitmap 对象
+- ✅ 改进了 data URL 到 ArrayBuffer 的转换逻辑
+
+### 🚀 性能优化
+
+- ✅ 使用 ArrayBuffer 作为可转移对象，避免数据复制
+- ✅ 减少主线程和 Worker 之间的数据传输开销
+- ✅ 提升大图片压缩性能
+
+### 📝 代码质量
+
+- ✅ 修复所有 ESLint 缩进错误
+- ✅ 统一代码缩进格式，符合项目规范
+
+---
+
+# 发布说明 - v1.2.4
+
+**发布日期**: 2024年11月12日  
+**版本**: 1.2.4
+
+## 🎯 本次发布重点
+
+### 🐛 关键 Bug 修复
+
+**问题**: 浏览器控制台出现 `ReferenceError: process is not defined` 错误
+
+**修复**: 
+- ✅ 在 Rollup 配置中添加了 `process.env.NODE_ENV` 的替换
+- ✅ 构建时会将 `process.env.NODE_ENV` 替换为字符串字面量
+- ✅ 浏览器中不再会出现 process 相关错误
+
+### 🔧 调试改进
+
+**新增功能**:
+- ✅ 详细的 Worker 初始化日志
+  - Worker 检查日志：显示浏览器支持情况和配置选项
+  - Worker 初始化过程日志：显示 Worker 代码加载和初始化状态
+  - Worker 错误详情日志：包含完整的错误信息（消息、文件名、行号等）
+  - 降级日志：显示何时以及为何降级到主线程模式
+
+**好处**:
+- 更容易排查 Worker 相关问题
+- 快速定位 Worker 未启用的原因
+- 清晰的错误信息，便于调试
+
+### 📝 使用建议
+
+在开发环境中，打开浏览器控制台可以看到详细的日志信息：
+
+```
+[Compressor] Worker check: { useWorker: true, isOffscreenSupported: true, ... }
+[Compressor] Using inline worker code
+[Compressor] Inline worker code length: 1234
+[Compressor] Worker manager initialized successfully
+[Compressor] Worker initialized successfully
+```
+
+如果 Worker 初始化失败，会显示详细的错误信息：
+
+```
+[WorkerManager] Worker error: { message: "...", filename: "...", ... }
+[Compressor] Worker initialization failed: ...
+[Compressor] Error details: { message: "...", stack: "...", ... }
+```
+
+---
+
+# 发布说明 - v1.2.3
+
+**发布日期**: 2024年11月12日  
+**版本**: 1.2.3
+
+## 🎯 本次发布重点
+
+### 🔧 代码质量改进
+
+**修复**: 修复了所有格式化错误，确保代码完全符合 ESLint 规范
+
+**改进内容**:
+- ✅ 统一使用单引号（符合 ESLint 配置）
+- ✅ 修复所有尾随逗号问题
+- ✅ 修复操作符位置（`&&` 和 `||` 放在行首）
+- ✅ 修复对象解构和赋值的换行问题
+- ✅ 代码完全符合项目 ESLint 规范
+
+**影响**: 
+- 代码风格统一，更易维护
+- 构建通过，无 lint 错误
+- 提升代码质量
+
+---
+
+# 发布说明 - v1.2.2
+
+**发布日期**: 2024年11月12日  
+**版本**: 1.2.2
+
+## 🎯 本次发布重点
+
+### 🔧 代码质量改进
+
+**修复**: 修复了所有格式化错误，确保代码完全符合 ESLint 规范
+
+**改进内容**:
+- ✅ 统一使用单引号（符合 ESLint 配置）
+- ✅ 修复所有尾随逗号问题
+- ✅ 修复操作符位置（`&&` 和 `||` 放在行首）
+- ✅ 修复对象解构和赋值的换行问题
+- ✅ 代码完全符合项目 ESLint 规范
+
+**影响**: 
+- 代码风格统一，更易维护
+- 构建通过，无 lint 错误
+- 提升代码质量
+
+---
+
 # 发布说明 - v1.2.1-5
 
 **发布日期**: 2024年11月12日  
