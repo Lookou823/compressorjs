@@ -191,6 +191,7 @@ class WorkerManager {
 // Shared worker manager instance with reference counting
 let workerManager = null;
 let workerManagerRefCount = 0;
+let workerCleanupTimer = null;
 
 /**
  * Creates a new image compressor.
@@ -251,7 +252,15 @@ export default class Compressor {
     const checkOrientation = isJPEGImage && options.checkOrientation;
     const retainExif = isJPEGImage && options.retainExif;
 
-    if (URL && !checkOrientation && !retainExif) {
+    const shouldUseWorker = this.options.useWorker !== false
+      && (this.options.useWorker === true
+        || (this.options.useWorker === undefined && isOffscreenCanvasSupported()));
+
+    if (shouldUseWorker && URL && !checkOrientation && !retainExif) {
+      this.load({
+        raw: file,
+      });
+    } else if (URL && !checkOrientation && !retainExif) {
       this.load({
         url: URL.createObjectURL(file),
       });
@@ -386,6 +395,9 @@ export default class Compressor {
     }
 
     image.alt = this.file.name;
+    if (!data.url && URL && this.file) {
+      data.url = URL.createObjectURL(this.file);
+    }
     image.src = data.url;
   }
 
@@ -417,21 +429,16 @@ export default class Compressor {
       // In Worker mode, we must avoid ANY image decoding in main thread
       // This includes: Image.onload, fetch(data URL), or any operation that triggers decoding
 
-      // Strategy: Use the original File/Blob directly if available
-      // If we have a FileReader result (data URL), convert it to ArrayBuffer without decoding
       let imageDataForWorker = null;
       const imageMimeType = this.file.type;
 
       // Priority 1: Use original File/Blob (no decoding needed)
       if (this.file instanceof File || this.file instanceof Blob) {
         imageDataForWorker = this.file;
+      } else if (data.raw instanceof File || data.raw instanceof Blob) {
+        imageDataForWorker = data.raw;
       } else if (data.url) {
-        // Priority 2: If we have a blob URL, fetch it (this doesn't decode the image)
-        if (data.url.startsWith('blob:')) {
-          const response = await fetch(data.url);
-          imageDataForWorker = await response.blob();
-        } else if (data.url.startsWith('data:')) {
-          // Priority 3: Convert data URL to binary without triggering image decoding
+        if (data.url.startsWith('data:')) {
           const commaIndex = data.url.indexOf(',');
           if (commaIndex === -1) {
             throw new Error('Invalid data URL');
@@ -446,13 +453,11 @@ export default class Compressor {
             }
             imageDataForWorker = bytes.buffer;
           } else {
-            // Percent-encoded payload (e.g. SVG). Convert to ArrayBuffer via TextEncoder.
             const decoded = decodeURIComponent(payload);
             const encoder = new TextEncoder();
             imageDataForWorker = encoder.encode(decoded).buffer;
           }
         } else {
-          // For other URLs, pass as-is (Worker will handle it)
           imageDataForWorker = data.url;
         }
       }
@@ -502,6 +507,10 @@ export default class Compressor {
       workerManager = new WorkerManager();
     }
     // Increment reference count
+    if (workerCleanupTimer) {
+      clearTimeout(workerCleanupTimer);
+      workerCleanupTimer = null;
+    }
     workerManagerRefCount += 1;
 
     // Try to load worker code
@@ -1013,10 +1022,14 @@ export default class Compressor {
     // Decrement worker manager reference count
     if (this.useWorker && workerManager && workerManagerRefCount > 0) {
       workerManagerRefCount -= 1;
-      // If no more references, cleanup worker manager
-      if (workerManagerRefCount === 0 && workerManager) {
-        workerManager.terminate();
-        workerManager = null;
+      if (workerManagerRefCount === 0 && workerManager && !workerCleanupTimer) {
+        workerCleanupTimer = setTimeout(() => {
+          if (workerManagerRefCount === 0 && workerManager) {
+            workerManager.terminate();
+            workerManager = null;
+          }
+          workerCleanupTimer = null;
+        }, 5000);
       }
     }
   }
