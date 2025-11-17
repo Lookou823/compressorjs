@@ -243,6 +243,23 @@ self.onmessage = async function (e) {
     // Convert PNG to JPEG if needed
     if (options.fileSize > options.convertSize && options.convertTypes.indexOf(mimeType) >= 0) {
       mimeType = 'image/jpeg';
+      if (options.debug) {
+        // eslint-disable-next-line no-console
+        console.log('[compressor-worker] convert by size threshold: PNG→JPEG');
+      }
+    }
+
+    if (
+      mimeType === 'image/png'
+      && typeof options.quality === 'number'
+      && options.quality < 1
+      && options.pngToJpegForQuality === true
+    ) {
+      mimeType = 'image/jpeg';
+      if (options.debug) {
+        // eslint-disable-next-line no-console
+        console.log('[compressor-worker] convert by quality intent: PNG→JPEG');
+      }
     }
 
     const isJPEGImage = mimeType === 'image/jpeg';

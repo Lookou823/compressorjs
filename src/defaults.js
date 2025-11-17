@@ -95,6 +95,19 @@ export default {
   convertSize: 5000000,
 
   /**
+   * When true, convert PNG to JPEG to apply the quality parameter.
+   * Keeps API compatible: default false (PNG ignores quality).
+   * @type {boolean}
+   */
+  pngToJpegForQuality: false,
+
+  /**
+   * Enable verbose decision logs for debugging.
+   * @type {boolean}
+   */
+  debug: false,
+
+  /**
    * The hook function to execute before draw the image into the canvas for compression.
    * @type {Function}
    * @param {CanvasRenderingContext2D} context - The 2d rendering context of the canvas.

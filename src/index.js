@@ -640,6 +640,23 @@ export default class Compressor {
         && options.convertTypes.indexOf(resultMimeType) >= 0
       ) {
         resultMimeType = 'image/jpeg';
+        if (options.debug) {
+          // eslint-disable-next-line no-console
+          console.log('[compressor] worker: convert by size threshold: PNG→JPEG');
+        }
+      }
+
+      if (
+        resultMimeType === 'image/png'
+        && typeof options.quality === 'number'
+        && options.quality < 1
+        && options.pngToJpegForQuality === true
+      ) {
+        resultMimeType = 'image/jpeg';
+        if (options.debug) {
+          // eslint-disable-next-line no-console
+          console.log('[compressor] worker: convert by quality intent: PNG→JPEG');
+        }
       }
       const isJPEGImage = resultMimeType === 'image/jpeg';
 
@@ -789,12 +806,28 @@ export default class Compressor {
 
     let fillStyle = 'transparent';
 
-    // Converts PNG files over the `convertSize` to JPEGs.
     if (
       file.size > options.convertSize
       && options.convertTypes.indexOf(options.mimeType) >= 0
     ) {
       options.mimeType = 'image/jpeg';
+      if (options.debug) {
+        // eslint-disable-next-line no-console
+        console.log('[compressor] convert by size threshold: PNG→JPEG');
+      }
+    }
+
+    if (
+      options.mimeType === 'image/png'
+      && typeof options.quality === 'number'
+      && options.quality < 1
+      && options.pngToJpegForQuality === true
+    ) {
+      options.mimeType = 'image/jpeg';
+      if (options.debug) {
+        // eslint-disable-next-line no-console
+        console.log('[compressor] convert by quality intent: PNG→JPEG');
+      }
     }
 
     const isJPEGImage = options.mimeType === 'image/jpeg';
