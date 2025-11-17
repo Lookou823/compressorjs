@@ -142,6 +142,10 @@
           <label>workerPath:</label>
           <input type="text" id="workerPath" placeholder="使用内联 Worker">
         </div>
+        <div class="option-item">
+          <label>pngToJpegForQuality:</label>
+          <input type="checkbox" id="pngToJpegForQuality">
+        </div>
       </div>
       
       <div style="margin-top: 20px;">
@@ -249,6 +253,7 @@
         maxHeight: document.getElementById('maxHeight').value ? parseInt(document.getElementById('maxHeight').value) : undefined,
         mimeType: document.getElementById('mimeType').value || undefined,
         workerPath: document.getElementById('workerPath').value || undefined,
+        pngToJpegForQuality: document.getElementById('pngToJpegForQuality').checked,
         success: (result) => {
           log('✅ 压缩成功!', 'success');
           log(`压缩后大小: ${(result.size / 1024).toFixed(2)} KB`, 'success');
@@ -285,6 +290,7 @@
       log(`  - maxHeight: ${options.maxHeight || 'Infinity'}`, 'info');
       log(`  - mimeType: ${options.mimeType || 'auto'}`, 'info');
       log(`  - workerPath: ${options.workerPath || '内联 Worker'}`, 'info');
+      log(`  - pngToJpegForQuality: ${options.pngToJpegForQuality}`, 'info');
       
       // 检查浏览器支持
       const supported = checkBrowserSupport();
