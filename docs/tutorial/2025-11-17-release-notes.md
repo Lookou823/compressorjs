@@ -401,10 +401,10 @@ Compressor.cleanup();
 
 ## 📚 相关文档
 
-- [性能审计报告](./PERFORMANCE_AUDIT_REPORT.md)
-- [修复说明](./FIXES_APPLIED.md)
-- [审计总结](./AUDIT_SUMMARY.md)
-- [Worker 使用指南](./WORKER_USAGE.md)
+- [性能审计报告](../design/architecture/2025-11-17-performance-audit-report.md)
+- [修复说明](../tutorial/2025-11-17-fixes-applied.md)
+- [审计总结](../design/architecture/2025-11-17-audit-summary.md)
+- [Worker 使用指南](../tutorial/2025-11-17-worker-usage.md)
 
 ## 🐛 问题反馈
 

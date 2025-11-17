@@ -77,4 +77,3 @@ new Compressor(file, {
 - **现在**：Worker 线程解码图片（不阻塞 UI）
 
 对于大图片（>5MB），性能提升明显，UI 保持流畅响应。
-

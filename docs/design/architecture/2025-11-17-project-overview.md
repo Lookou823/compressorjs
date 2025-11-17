@@ -130,4 +130,3 @@ compressorjs-worker-version/
 - **内存管理**: 自动清理 Blob URL，防止内存泄漏
 - **任务超时**: Worker 任务 30 秒超时机制
 - **数据传输**: 使用可转移对象优化性能
-

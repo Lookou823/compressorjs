@@ -140,4 +140,3 @@ new Compressor(file, {
 - 主线程无 Image decode 任务
 - UI 保持流畅，无卡顿
 - Worker 线程中有 decode 和 canvas 操作
-

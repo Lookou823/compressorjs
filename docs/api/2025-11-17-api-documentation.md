@@ -372,4 +372,3 @@ new Compressor(file, {
 - 传递函数到 Worker（无法序列化）
 - 忽略错误处理
 - 不清理 Blob URL（内存泄漏）
-

@@ -312,4 +312,3 @@ npm deprecate @liuyongdi/compressorjs@1.2.1-0 "This version has a critical bug"
 ---
 
 **最后更新**：2024年
-

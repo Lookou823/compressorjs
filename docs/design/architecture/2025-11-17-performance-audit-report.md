@@ -544,4 +544,3 @@ if (typeof ImageDecoder !== 'undefined') {
 - ✅ Chrome ≥ 96: 支持 OffscreenCanvas 和 ImageDecoder
 - ✅ Node ≥ 16: 支持所有 ES6+ 特性
 - ⚠️ 需要添加降级方案以支持旧浏览器
-

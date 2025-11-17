@@ -82,4 +82,3 @@ function handleCompress(file) {
 1. **库本身**: 不涉及路由，无需路由配置
 2. **框架集成**: 由调用方（React Router/Vue Router）管理路由
 3. **导航控制**: 在回调函数中处理路由跳转（如需要）
-

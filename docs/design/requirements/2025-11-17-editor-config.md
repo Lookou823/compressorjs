@@ -89,4 +89,3 @@ npm run lint:js
 - 确保 `.vscode/settings.json` 文件已提交到 Git（如果团队使用 VS Code）
 - 如果团队成员使用不同编辑器，建议在 README 中说明配置要求
 - 可以考虑添加 `.prettierrc` 配置文件统一格式化规则（如果项目需要）
-

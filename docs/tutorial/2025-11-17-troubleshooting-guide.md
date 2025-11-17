@@ -76,4 +76,3 @@ this.worker.onmessage = (e) => {
   // 处理压缩任务...
 };
 ```
-
