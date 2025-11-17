@@ -236,6 +236,14 @@ export default class Compressor {
       return;
     }
 
+    if (Array.isArray(options.unsupportedTypes) && options.unsupportedTypes.indexOf(mimeType) >= 0) {
+      this.result = file;
+      if (options.success) {
+        options.success.call(this, file);
+      }
+      return;
+    }
+
     if (!URL || !FileReader) {
       this.fail(
         new Error('The current browser does not support image compression.'),

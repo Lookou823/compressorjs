@@ -107,6 +107,8 @@ export default {
    */
   debug: false,
 
+  unsupportedTypes: ['image/gif', 'image/svg+xml'],
+
   /**
    * The hook function to execute before draw the image into the canvas for compression.
    * @type {Function}
