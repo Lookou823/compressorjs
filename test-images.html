@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>图片压缩测试图生成器（30 张）</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft Yahei", sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 20px;
+        }
+
+        p {
+            margin: 4px 0 16px;
+            color: #555;
+            font-size: 13px;
+        }
+
+        .controls {
+            margin-bottom: 16px;
+        }
+
+        button {
+            padding: 6px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background: #fff;
+        }
+
+        button:hover {
+            background: #f0f0f0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .item {
+            background: #fff;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .meta {
+            font-size: 12px;
+            color: #666;
+            margin: 6px 0;
+            word-break: break-all;
+        }
+
+        canvas {
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+            background: #eee;
+        }
+
+        .btn-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 4px;
+            margin-top: 4px;
+            flex-wrap: wrap;
+        }
+
+        .btn-row button {
+            flex: 1;
+            min-width: 80px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>图片压缩测试图生成器（30 张随机图片）</h1>
+    <p>自动生成 30 张尺寸、长宽比、内容各不相同的 PNG 图片，用于验证压缩效果。</p>
+
+    <div class="controls">
+        <button id="regen">重新生成 30 张图片</button>
+    </div>
+
+    <div id="grid" class="grid"></div>
+
+    <script>
+        const COUNT = 30;
+
+        // 一些常见 & 极端的宽高组合（包含超宽、超高、正方形、大分辨率等）
+        const SIZES = [
+            [64, 64],    // 小图标
+            [128, 72],   // 16:9 小
+            [128, 256],  // 1:2 竖图
+            [256, 128],  // 2:1 横图
+            [320, 240],  // 4:3 常见
+            [360, 640],  // 手机竖屏
+            [640, 360],  // 16:9
+            [800, 600],  // 4:3
+            [1024, 768], // 4:3
+            [1280, 720], // 720p
+            [1920, 1080],// 1080p
+            [800, 200],  // 超宽横幅
+            [200, 800],  // 超高竖幅
+            [512, 512],  // 正方形
+        ];
+
+        // 随机颜色
+        function randomColor(alpha = 1) {
+            const r = Math.floor(Math.random() * 256);
+            const g = Math.floor(Math.random() * 256);
+            const b = Math.floor(Math.random() * 256);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        // 随机从数组中取一个
+        function pick(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        // 绘制随机背景（纯色 / 渐变）
+        function drawBackground(ctx, w, h) {
+            const mode = Math.random();
+            if (mode < 0.4) {
+                ctx.fillStyle = randomColor();
+                ctx.fillRect(0, 0, w, h);
+            } else {
+                const grad = mode < 0.7
+                    ? ctx.createLinearGradient(0, 0, w, h)
+                    : ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h));
+
+                grad.addColorStop(0, randomColor());
+                grad.addColorStop(1, randomColor());
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+            }
+        }
+
+        // 绘制随机几何图形
+        function drawShapes(ctx, w, h) {
+            const shapeCount = 5 + Math.floor(Math.random() * 10);
+            for (let i = 0; i < shapeCount; i++) {
+                ctx.save();
+                ctx.globalAlpha = 0.4 + Math.random() * 0.6;
+                ctx.fillStyle = randomColor();
+                ctx.strokeStyle = randomColor();
+                ctx.lineWidth = 1 + Math.random() * 4;
+
+                const x = Math.random() * w;
+                const y = Math.random() * h;
+                const rw = 20 + Math.random() * (w / 2);
+                const rh = 20 + Math.random() * (h / 2);
+
+                const typeRand = Math.random();
+
+                if (typeRand < 0.33) {
+                    // 矩形
+                    ctx.fillRect(x - rw / 2, y - rh / 2, rw, rh);
+                } else if (typeRand < 0.66) {
+                    // 圆形
+                    ctx.beginPath();
+                    ctx.arc(x, y, Math.min(rw, rh) / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // 多边形（三角形）
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - rh / 2);
+                    ctx.lineTo(x - rw / 2, y + rh / 2);
+                    ctx.lineTo(x + rw / 2, y + rh / 2);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                if (Math.random() < 0.4) {
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        }
+
+        // 绘制带尺寸信息的文字
+        function drawText(ctx, w, h, index) {
+            const fontSize = Math.round(Math.max(12, Math.min(w, h) / 12));
+            ctx.font = `bold ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+            ctx.fillStyle = "rgba(255,255,255,0.9)";
+            ctx.strokeStyle = "rgba(0,0,0,0.6)";
+            ctx.lineWidth = Math.max(1, fontSize / 10);
+
+            const text1 = `#${index + 1}`;
+            const text2 = `${w} x ${h}`;
+            const text3 = `ratio ${(w / h).toFixed(2)}`;
+
+            ctx.textBaseline = "top";
+
+            const padding = fontSize * 0.5;
+            const lines = [text1, text2, text3];
+            const lineHeight = fontSize * 1.2;
+
+            // 在左上角画一个半透明底
+            const maxTextWidth = Math.max(
+                ...lines.map(t => ctx.measureText(t).width)
+            );
+            const boxWidth = maxTextWidth + padding * 2;
+            const boxHeight = lines.length * lineHeight + padding;
+
+            ctx.save();
+            ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+            ctx.fillRect(padding, padding, boxWidth, boxHeight);
+
+            ctx.fillStyle = "rgba(255,255,255,0.95)";
+            lines.forEach((t, i) => {
+                const y = padding + i * lineHeight + 2;
+                const x = padding + 4;
+                ctx.strokeText(t, x, y);
+                ctx.fillText(t, x, y);
+            });
+            ctx.restore();
+        }
+
+        // 生成单张图片
+        function generateImage(index) {
+            // 随机选一个尺寸，然后再加一点随机扰动，保证尺寸的多样性
+            let [baseW, baseH] = pick(SIZES);
+            const jitter = () => (Math.random() < 0.5 ? 0 : Math.round((Math.random() - 0.5) * 0.2 * baseW));
+
+            const w = Math.max(32, baseW + jitter());
+            const h = Math.max(32, baseH + jitter());
+
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+
+            const ctx = canvas.getContext("2d");
+
+            // 背景 + 几何图形 + 文案
+            drawBackground(ctx, w, h);
+            drawShapes(ctx, w, h);
+            drawText(ctx, w, h, index);
+
+            return { canvas, width: w, height: h };
+        }
+
+        // 下载指定 canvas 为 PNG
+        function downloadCanvasPNG(canvas, filename) {
+            canvas.toBlob(function (blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            }, "image/png");
+        }
+
+        // 生成一批图片并渲染到页面
+        function renderAll() {
+            const grid = document.getElementById("grid");
+            grid.innerHTML = "";
+
+            for (let i = 0; i < COUNT; i++) {
+                const { canvas, width, height } = generateImage(i);
+                const item = document.createElement("div");
+                item.className = "item";
+
+                const meta = document.createElement("div");
+                meta.className = "meta";
+                meta.textContent = `#${i + 1}  尺寸：${width} x ${height}  比例：${(width / height).toFixed(2)}`;
+
+                const btnRow = document.createElement("div");
+                btnRow.className = "btn-row";
+
+                const downloadBtn = document.createElement("button");
+                downloadBtn.textContent = "下载 PNG";
+                downloadBtn.onclick = () => {
+                    const name = `test-image-${String(i + 1).padStart(2, "0")}-${width}x${height}.png`;
+                    downloadCanvasPNG(canvas, name);
+                };
+
+                const infoBtn = document.createElement("button");
+                infoBtn.textContent = "复制尺寸";
+                infoBtn.onclick = async () => {
+                    const text = `${width}x${height} (ratio ${(width / height).toFixed(4)})`;
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        infoBtn.textContent = "已复制";
+                        setTimeout(() => (infoBtn.textContent = "复制尺寸"), 1000);
+                    } catch (e) {
+                        alert("复制失败，可手动复制：\n" + text);
+                    }
+                };
+
+                btnRow.appendChild(downloadBtn);
+                btnRow.appendChild(infoBtn);
+
+                item.appendChild(canvas);
+                item.appendChild(meta);
+                item.appendChild(btnRow);
+                grid.appendChild(item);
+            }
+        }
+
+        document.getElementById("regen").addEventListener("click", renderAll);
+
+        // 页面加载完成后立即生成一批
+        renderAll();
+    </script>
+</body>
+
+</html>
